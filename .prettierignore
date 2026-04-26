@@ -1,0 +1,13 @@
+node_modules
+.expo
+dist
+web-build
+ios
+android
+sprites
+fonts
+phases
+*.md
+spec/style-light.json
+spec/style-dark.json
+spec/tokens.json

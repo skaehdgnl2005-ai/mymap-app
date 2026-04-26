@@ -1,0 +1,5 @@
+<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- BAR: wine glass triangle on stem (D11 lock — most pixel-efficient drink symbol) -->
+  <!-- Single continuous outline: cup (triangle) + stem + foot -->
+  <path d="M6 4 L18 4 L13 12 L13 17 L16 19 L16 20 L8 20 L8 19 L11 17 L11 12 Z" fill="white"/>
+</svg>
