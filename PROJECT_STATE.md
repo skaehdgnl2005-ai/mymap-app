@@ -158,6 +158,35 @@ modules served by Metro). Active `phases/CURRENT_PHASE.md` →
 
 ## Cross-phase issues / drift
 
+### First EAS iOS Build deferred to end of Phase 4
+
+iOS verification cannot be done locally on Windows (no Xcode); the
+opening Phase 1 decision was to defer iOS verification to "first EAS
+Build" rather than borrow a Mac. Decision **2026-04-27**: actually
+trigger that first EAS iOS build at the **end of Phase 4 (Map renderer
+integration)**, not now.
+
+**Why not at Phase 1 close:** the iOS code today is just the vanilla
+Expo template + `@rnmapbox/maps` native config — no app-specific iOS
+behavior. The first EAS iOS build is most diagnostic when actual
+Mapbox iOS bindings get exercised by `PersonalMap`, so any failure is
+unambiguously attributable.
+
+**To run when Phase 4 closes:**
+
+```bash
+pnpm add -D eas-cli
+pnpm exec eas login                 # free Expo account, one-time
+pnpm exec eas init                  # links project to EAS
+pnpm exec eas build --platform ios --profile development --simulator
+# Simulator profile = no Apple Developer Program needed.
+# Output is a .app for iOS Simulator (Mac required to actually launch;
+# the build succeeding/failing is itself the verification we want here).
+```
+
+Apple Developer Program ($99/yr) becomes required at **Phase 10** for
+TestFlight + App Store, NOT for this build.
+
 ### `expo-system-ui` not installed (resolve at Phase 4 kickoff)
 
 `app.config.ts` sets `userInterfaceStyle: 'automatic'` to enable D8 dark
