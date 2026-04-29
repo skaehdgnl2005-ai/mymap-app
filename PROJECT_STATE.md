@@ -1,6 +1,11 @@
 # PROJECT_STATE
 Last updated: 2026-04-28 (Phase 2 complete; ready for Phase 3 — backend foundation)
 
+> **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
+> of every "before launch" item across all phases, organized by
+> trigger event. Use this when you're about to hit a phase boundary
+> and want to see what's due.
+
 ## Current phase
 
 Phase 2 — Completed (verified all 11 sample asset URLs return 200 +
