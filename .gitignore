@@ -42,3 +42,9 @@ build-*.log
 # generated native folders
 /ios
 /android
+
+# Phase 2 generated assets (sprite atlas + glyph PBFs).
+# Source-of-truth lives elsewhere: SVGs in sprites/, Pretendard upstream
+# at github.com/orioncactus/pretendard. Rebuildable via build-sprites.sh
+# + Docker fontnik (see PROJECT_STATE.md → Phase 2 entry for SHA256s).
+/build/

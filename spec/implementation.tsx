@@ -11,7 +11,8 @@
  *   __STYLE_DARK_URL__        → URL to style-dark.json
  *
  * Style JSONs already reference self-hosted sprite + glyph URLs internally
- * (see __SPRITE_URL__ / __GLYPHS_URL__ placeholders inside the style files).
+ * (Phase 2 wired these to the R2 public bucket; see PROJECT_STATE.md
+ * "Phase 2: Asset hosting" entry for the bucket + URL convention).
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';

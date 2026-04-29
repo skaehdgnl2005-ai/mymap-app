@@ -16,26 +16,43 @@ portability lock — same principle).
 
 ## Step 1 — Get Pretendard
 
-Pretendard is MIT-licensed. Get the latest release:
+Pretendard ships under SIL OFL 1.1 (license file in the release zip).
+Pull from the official upstream release — npm mirror packages strip the
+license file and have unverified maintainer trust:
 
 ```bash
-# Option A: from GitHub releases
-curl -L -o Pretendard.zip \
-  https://github.com/orioncactus/pretendard/releases/latest/download/Pretendard-Web.zip
-unzip Pretendard.zip -d ./pretendard-source
-
-# Option B: via npm
-npm install pretendard
-# Then copy node_modules/pretendard/dist/web/static/pretendard-*.ttf
+mkdir -p ./pretendard-source
+curl -fsSL -o ./pretendard-source/Pretendard.zip \
+  https://github.com/orioncactus/pretendard/releases/download/v1.3.9/Pretendard-1.3.9.zip
 ```
+
+**Zip layout note (Pretendard 1.3.x):** The canonical static fonts ship as
+**OTF** under `public/static/Pretendard-{weight}.otf`. There ARE static
+TTFs in the zip but only under `public/static/alternative/` — that is the
+*alternative numeral style* (different default `1`/`0` glyphs), wrong for
+this app's number-heavy address rendering. Use the canonical OTFs:
+
+```bash
+unzip -j -o ./pretendard-source/Pretendard.zip \
+  "public/static/Pretendard-Regular.otf" \
+  "public/static/Pretendard-Medium.otf" \
+  "public/static/Pretendard-Bold.otf" \
+  "LICENSE.txt" \
+  -d ./pretendard-source/
+```
+
+`fontnik` accepts OTF identically to TTF (both routed through freetype).
+Record the per-file SHA256 in PROJECT_STATE.md for future rebuild
+reproducibility — the upstream release predates GitHub's per-asset digest
+field, so verification is local-only.
 
 You only need these weights for v1:
 
 | Weight | File | Used for |
 |---|---|---|
-| 400 (Regular) | `Pretendard-Regular.ttf` | Body, most map labels |
-| 500 (Medium) | `Pretendard-Medium.ttf` | Emphasized labels (구, 동, subway stations) |
-| 700 (Bold) | `Pretendard-Bold.ttf` | UI headings, primary CTA text |
+| 400 (Regular) | `Pretendard-Regular.otf` | Body, most map labels |
+| 500 (Medium) | `Pretendard-Medium.otf` | Emphasized labels (구, 동, subway stations) |
+| 700 (Bold) | `Pretendard-Bold.otf` | UI headings, primary CTA text |
 | 400 italic | (see below) | Park / water labels (D11 lock — italic = natural features) |
 
 **Note on italic:** Pretendard does NOT ship an italic style — it's a
@@ -62,41 +79,75 @@ layer's `text-font` to `["IBM Plex Sans KR Italic"]` if you go that route.
 ## Step 2 — Install fontnik
 
 `fontnik` is the canonical Mapbox tool for generating PBF glyph ranges.
+It ships the `build-glyphs` CLI as a binary.
 
 ```bash
 npm install -g fontnik
 ```
 
-Or use the build-glyphs CLI it ships with:
-
-```bash
-npm install -g @mapbox/build-glyphs
-```
+**Windows note:** fontnik 0.7.x ships prebuilt binaries for darwin and
+linux only — Windows installs fall back to compiling from source via
+node-gyp, which requires Visual Studio Build Tools (~5 GB install). The
+clean fallback that preserves the doc-stated tool exactly is to run
+fontnik in a Linux container; PBF output is deterministic regardless of
+host OS. See "Step 3 alt — fontnik in Docker (Windows)" below.
 
 ---
 
-## Step 3 — Generate PBFs
+## Step 3 — Generate PBFs (macOS / Linux)
 
 ```bash
 mkdir -p ./build/glyphs/Pretendard\ Regular
 mkdir -p ./build/glyphs/Pretendard\ Medium
 mkdir -p ./build/glyphs/Pretendard\ Bold
 
-build-glyphs ./pretendard-source/Pretendard-Regular.ttf \
+build-glyphs ./pretendard-source/Pretendard-Regular.otf \
   "./build/glyphs/Pretendard Regular"
 
-build-glyphs ./pretendard-source/Pretendard-Medium.ttf \
+build-glyphs ./pretendard-source/Pretendard-Medium.otf \
   "./build/glyphs/Pretendard Medium"
 
-build-glyphs ./pretendard-source/Pretendard-Bold.ttf \
+build-glyphs ./pretendard-source/Pretendard-Bold.otf \
   "./build/glyphs/Pretendard Bold"
 ```
 
 This generates 256 PBF files per font, one per Unicode range
 (`0-255.pbf`, `256-511.pbf`, etc., up to `65280-65535.pbf`).
 
-Total disk: ~6-8 MB per font weight after building (Korean glyphs are
-heavier than Latin).
+Total disk: ~6-9 MB per font weight after building (Korean glyphs are
+heavier than Latin — Hangul ranges hit ~170 KB per PBF).
+
+---
+
+## Step 3 alt — fontnik in Docker (Windows)
+
+Use any Linux-glibc Node base image. PBF output is deterministic, so
+build artifacts produced in the container are byte-identical to what a
+host install would produce.
+
+```bash
+# From repo root. MSYS_NO_PATHCONV=1 is required in Git Bash to stop
+# MSYS from rewriting /work/... → C:/Program Files/Git/work/... in the
+# arguments docker.exe receives.
+export MSYS_NO_PATHCONV=1
+
+docker run --rm \
+  -v "/c/dev/mymap-app/build:/work/out" \
+  -v "/c/Users/skaeh/pretendard-source/extracted:/work/fonts:ro" \
+  node:24-slim bash -c '
+    set -e
+    npm install -g fontnik
+    mkdir -p "/work/out/glyphs/Pretendard Regular" \
+             "/work/out/glyphs/Pretendard Medium" \
+             "/work/out/glyphs/Pretendard Bold"
+    for w in Regular Medium Bold; do
+      build-glyphs "/work/fonts/Pretendard-$w.otf" "/work/out/glyphs/Pretendard $w"
+    done
+  '
+```
+
+Adjust the two `-v` paths to your host layout. The container drops the
+PBFs to your host `build/glyphs/` directory via the bind mount.
 
 ---
 
@@ -146,13 +197,15 @@ The `/v1/` in the URL path is the cache-busting mechanism — bump to
 
 ## Total v1 hosting footprint
 
-| Asset | Approx size |
+Measured against Pretendard 1.3.9 (canonical OTFs):
+
+| Asset | Measured size |
 |---|---|
-| sprite.json + sprite.png + @2x + @3x | ~80 KB |
-| Pretendard Regular PBFs | ~7 MB |
-| Pretendard Medium PBFs | ~7 MB |
-| Pretendard Bold PBFs | ~7 MB |
-| **Total** | **~21 MB** |
+| sprite.json + sprite.png + @2x + @3x | ~6 KB |
+| Pretendard Regular PBFs (256 files) | 8.7 MB |
+| Pretendard Medium PBFs (256 files) | 8.7 MB |
+| Pretendard Bold PBFs (256 files) | 8.9 MB |
+| **Total** | **~26 MB** |
 
 Cloudflare R2 storage: $0.015/GB/month. v1 hosting cost for assets:
-**~$0.0003/month.** Effectively free.
+**~$0.0004/month.** Effectively free.

@@ -1,11 +1,17 @@
 # PROJECT_STATE
-Last updated: 2026-04-27 (Phase 1 complete; ready for Phase 2 — asset hosting)
+Last updated: 2026-04-28 (Phase 2 complete; ready for Phase 3 — backend foundation)
 
 ## Current phase
-Phase 1 — Completed (verified `pnpm android` boot on Pixel 7 / API 34
-emulator, `com.gachi2026.mymap/.MainActivity` launched, JS bundle of 686
-modules served by Metro). Active `phases/CURRENT_PHASE.md` →
-`phase-2-assets.md`. Phase 2 ready to start.
+
+Phase 2 — Completed (verified all 11 sample asset URLs return 200 +
+correct content-type + `Cache-Control: ... immutable`; placeholders in
+`spec/style-{light,dark}.json` swapped to the R2 public URL). Active
+`phases/CURRENT_PHASE.md` → `phase-3-backend.md`. Phase 3 ready to start.
+
+Open decisions to lock at Phase 3 kickoff: backend choice
+(Supabase / Firestore / custom), authentication provider (Apple +
+Google required for App Store; KakaoTalk optional). See "Open
+decisions" section.
 
 ## Environment & setup decisions
 
@@ -121,9 +127,129 @@ modules served by Metro). Active `phases/CURRENT_PHASE.md` →
     `expo-system-ui` install as a prerequisite when wiring up dark
     mode listening (see "Cross-phase issues" entry).
 
+- [x] Phase 2: Asset hosting
+  - Completed: 2026-04-28
+  - Duration: 1 working day (single session — build + R2 provisioning
+    + 34-min upload + URL swap)
+  - Verification gate (all passed):
+    - 11 sample URLs across sprite manifest + 1×/2×/3× atlas + PBFs
+      (Latin / Hangul / Pretendard ×3 weights) all returned
+      `HTTP/1.1 200 OK` via `curl -sI`
+    - Content-Type correct per asset class: `application/json` /
+      `image/png` / `application/x-protobuf`
+    - `Cache-Control: public, max-age=31536000, immutable` set on every
+      object (R2 returned headers verbatim)
+    - Korean Hangul range (44032-44287) returned ~173 KB across all
+      three weights — confirms full Korean glyph set hosted intact
+    - `spec/style-{light,dark}.json` contain no `__SPRITE_URL__` or
+      `__GLYPHS_URL__` placeholders; both pass `python json.load` cleanly
+    - Upload script summary: 774 files, 25.68 MB, exit 0, ~34 min wall
+  - Locked tooling versions (rebuild reproducibility):
+    - **spreet 0.13.1** — Windows x86_64-pc-windows-msvc binary at
+      `~/bin/spreet.exe` (released 2025-12-24); upstream digest verified
+      against GitHub per-asset digest at install
+    - **fontnik 0.7.4** via npm in `node:24-slim` Docker container
+      (host install blocked on Windows — see Cross-phase issues)
+    - **Pretendard 1.3.9** (released 2023-11-05, SIL OFL 1.1, official
+      `github.com/orioncactus/pretendard` upstream release)
+    - **Docker Engine 29.3.1** (Docker Desktop on Windows, WSL backend)
+    - **wrangler 4.85.0** via `pnpm exec` (project-local devDep)
+  - Source asset SHA256s (re-verifiable):
+    - `spreet-x86_64-pc-windows-msvc.zip` →
+      `a9cd066f39b4738863757fbc48a6b5984ed731258c3858d5323bae5239e14d2a`
+      (verified vs GitHub per-asset digest)
+    - `Pretendard-1.3.9.zip` →
+      `04be351a74d6bf7d60c480a3087e51d185485d35a52023142af1df19eb8c428a`
+    - `Pretendard-Regular.otf` →
+      `3ffbacde6ab8411f1d2db54bb9b1f0b3ee2a738932033722cf0388c06aed1c93`
+    - `Pretendard-Medium.otf` →
+      `d39e50e4bb52b4993b6a4eeb821a171254745bd824446af01e1f616b89fface0`
+    - `Pretendard-Bold.otf` →
+      `2e91915fab54df71cc9598ebf608b2bdb54c6fe3c066ac61dff0bc44fca71cc7`
+    - `LICENSE.txt` (Pretendard SIL OFL 1.1) →
+      `b04538c9abec39a3db75108cf0af0fd9c77032fe8aa2cf38345b4d250e98e38e`
+
+    Pretendard hashes are local-only (the v1.3.9 release predates
+    GitHub's per-asset digest field) — captured for future-rebuild
+    verification, not upstream-tampering detection.
+  - R2 hosting state:
+    - **Bucket:** `mymap-assets` (single bucket, no env split)
+    - **Public URL base:** `https://pub-96d04a4b40e74f4a91fc943235cb0ed2.r2.dev`
+    - **Layout:** `/sprites/v1/sprite{,@2x,@3x}.{json,png}` +
+      `/fonts/v1/{fontstack}/{range}.pbf` (per-asset-type versioning)
+    - **CORS:** `{"rules": [{"allowed": {"origins": ["*"], ...}}]}` —
+      MUST tighten at Phase 10 (see Cross-phase issues entry)
+    - **Cache-Control:** `public, max-age=31536000, immutable`
+    - **Storage cost:** ~$0.0004/month at R2's $0.015/GB rate
+      (effectively free)
+    - Default `*.r2.dev` URL surface; custom domain locked at Phase 10
+  - Files created/modified (key paths):
+    - `scripts/upload-assets.sh` — wrangler-based R2 uploader
+      (idempotent, `--dry-run` flag, walks all 774 build/ files,
+      `set -euo pipefail`, per-file content-type, progress + summary,
+      `MSYS_NO_PATHCONV` bridge for R2-key safety, `cygpath -w` for
+      `--file=` path conversion to Windows form)
+    - `scripts/r2-cors.json` — R2 CORS config in R2's native schema
+      (NOT S3-style); applied via `wrangler r2 bucket cors set`
+    - `.gitignore` — added `/build/` entry (sprite + PBF outputs are
+      rebuildable from sources)
+    - `fonts/BUILD-PBF.md` — patched: OTF source correction, Windows
+      Docker fallback recipe, measured-size table
+    - `spec/style-{light,dark}.json` — `__SPRITE_URL__` /
+      `__GLYPHS_URL__` placeholders replaced with R2 public URL
+    - `spec/implementation.tsx` — patched obsolete comment that
+      referenced the now-filled `__SPRITE_URL__` / `__GLYPHS_URL__`
+      placeholders
+    - `package.json` + `pnpm-lock.yaml` — `wrangler@^4.85.0` added as
+      devDependency (needed for R2 ops; logged per CLAUDE.md
+      "New dependencies require a log entry")
+    - `build/` (gitignored) — 774 generated files, 25.68 MB total
+  - Mid-phase decisions:
+    - **CDN provider: Cloudflare R2** — resolved the Phase 1 open
+      decision; decoupled from Phase 3 backend choice; zero egress fees
+    - **Bucket name: `mymap-assets`** — version belongs in URL path,
+      not bucket name (avoids bucket-rename pain when v2 ships)
+    - **Per-asset-type URL versioning**: `/sprites/v1/` and `/fonts/v1/`
+      independently bumpable (sprites and fonts have unrelated update
+      cadences)
+    - **Single bucket, version-path dev/prod separation**: bump
+      `/sprites/v2/` for dev preview, leave prod on `/sprites/v1/`;
+      these assets are too stable to justify two-bucket ops surface
+    - **CORS `["*"]` for v1**: native RN doesn't enforce, v1.5 web PWA
+      will — one-time setup now beats retrofitting; tighten at Phase 10
+    - **Cache-Control `public, max-age=31536000, immutable`**:
+      `immutable` is load-bearing (browsers skip revalidation entirely);
+      `/v1/` path is the cache-bust mechanism
+    - **R2 default `*.r2.dev` URL for now**: custom domain at Phase 10
+      (R2 supports concurrent URLs during cutover)
+    - **Pretendard OTF deviation**: 1.3.9 ships canonical static fonts
+      as OTF (not TTF as `fonts/BUILD-PBF.md` originally claimed); TTFs
+      only under `/alternative/` with non-default numerals (wrong for
+      number-heavy address rendering). fontnik handles OTF identically
+      to TTF (both via freetype). Doc patched in this phase.
+    - **fontnik on Windows → Docker**: fontnik 0.7.x ships prebuilds
+      for darwin + linux only; Windows host install requires VS Build
+      Tools (~5 GB). Used `node:24-slim` Docker — PBF output is
+      deterministic regardless of host OS. See Cross-phase issues entry.
+    - **wrangler `cors set` + R2 CORS schema**: wrangler 4.x supports
+      both `cors set` (newer) and `cors put` (legacy alias); R2's CORS
+      schema is `{"rules": [...]}` with nested
+      `allowed.{origins,methods,headers}` — NOT S3-style flat keys
+      (`AllowedOrigins` etc.). Initial JSON written in S3-style failed
+      with "must contain a 'rules' array" — script + doc fixed mid-phase.
+  - Cross-phase drift detected:
+    - Doc said TTF, reality is OTF — `fonts/BUILD-PBF.md` patched in
+      this phase (not a future-phase issue)
+    - fontnik Windows install path needs Docker — added permanent entry
+      under Cross-phase issues / drift (will recur for any Windows
+      contributor)
+    - CORS `["*"]` baseline needs Phase 10 tightening — added
+      Cross-phase issues entry to surface at App Store prep
+  - Recommended Phase 3+ doc tweaks: none. Phase 3 backend doc is
+    medium-detail per `phases/README.md` — expand at Phase 3 kickoff.
+
 ## Pending phases
 
-- [ ] Phase 2: Asset hosting (sprite + Pretendard PBFs uploaded to R2)
 - [ ] Phase 3: Backend foundation (Supabase + schema + auth + OG fetcher)
 - [ ] Phase 4: Map renderer integration (PersonalMap component + dark mode)
 - [ ] Phase 5: Save-flow MVP — VALIDATION GATE (share-ext + URL classifier + Kakao auto-resolve)
@@ -152,9 +278,8 @@ modules served by Metro). Active `phases/CURRENT_PHASE.md` →
   product name — see "App Store branded display name" decision above)
   must be locked before first TestFlight / Play Internal upload at
   Phase 10. Changing it later requires a new app listing from scratch.
-- **CDN provider (Phase 2):** Cloudflare R2 (recommended for cost +
-  egress) vs Supabase Storage (one-vendor simplicity if Phase 3 picks
-  Supabase). Decide at Phase 2.
+- ~~CDN provider (Phase 2)~~ — **LOCKED 2026-04-28: Cloudflare R2.**
+  See "Phase 2 mid-phase decisions" in Current phase block above.
 
 ## Cross-phase issues / drift
 
@@ -261,6 +386,68 @@ pnpm why brace-expansion@1.1 2>/dev/null | head -3
 
 **Last verified active:** 2026-04-27 (both chains live; override required).
 
+### Phase 10 CORS tightening (R2 `mymap-assets` bucket)
+
+Phase 2 set R2 bucket CORS to `AllowedOrigins: ["*"]` because the v1
+client is RN-native (no CORS check) and the v1.5 web PWA's eventual
+production origin isn't known yet. Acceptable as a v1 baseline.
+
+**MUST tighten before App Store / TestFlight upload at Phase 10.**
+
+**Why it matters even though the assets are public:** an open `*`
+origin lets any third-party site embed your CDN traffic in their pages,
+which inflates R2 egress reads and obscures usage analytics. The assets
+themselves staying public is fine; the CORS gate is about who can
+*read them from a browser context other than your own app*.
+
+**To resolve at Phase 10** (replace placeholders with real product
+origins once the brand name is locked):
+
+```bash
+cat > scripts/r2-cors.json <<'EOF'
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://www.<product>.app",
+          "https://<product>.app",
+          "https://staging.<product>.app"
+        ],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"]
+      },
+      "maxAgeSeconds": 3600
+    }
+  ]
+}
+EOF
+pnpm exec wrangler r2 bucket cors set mymap-assets --file=scripts/r2-cors.json
+```
+
+Note: R2's CORS schema is **not** S3-style. Top-level `{"rules": [...]}`
+wrapper, each rule has `allowed.{origins,methods,headers}` (lowercase,
+nested), not `AllowedOrigins`/`AllowedMethods`/`AllowedHeaders`. The
+wrangler subcommand is `cors set` in wrangler 4.x (also accepts `put`).
+
+Native iOS/Android clients are unaffected — they don't read CORS
+headers. Only browser-context (web PWA) clients are gated by this.
+
+### Docker required for fontnik on Windows (resolve never; document forever)
+
+fontnik 0.7.x ships prebuilt binaries for darwin + linux only —
+Windows installs fall back to compiling node-fontnik from source via
+node-gyp, which requires Visual Studio Build Tools (~5 GB install).
+
+**Workaround (locked Phase 2 path):** run fontnik in a Linux container.
+PBF output is deterministic, so container builds are byte-identical to
+host builds. Docker Desktop must be running. Recipe is in
+`fonts/BUILD-PBF.md` § "Step 3 alt — fontnik in Docker (Windows)".
+
+This is a permanent property of this dev environment, not a fix-someday
+issue — recorded so a future contributor on Windows doesn't waste a
+day on `node-gyp ERR! find VS` before finding the docker recipe.
+
 ## Active blockers
 
-(empty — Phase 2 ready to start)
+(empty — Phase 3 ready to start)

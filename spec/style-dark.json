@@ -15,8 +15,8 @@
   "bearing": 0,
   "pitch": 0,
 
-  "sprite": "__SPRITE_URL__",
-  "glyphs": "__GLYPHS_URL__/{fontstack}/{range}.pbf",
+  "sprite": "https://pub-96d04a4b40e74f4a91fc943235cb0ed2.r2.dev/sprites/v1/sprite",
+  "glyphs": "https://pub-96d04a4b40e74f4a91fc943235cb0ed2.r2.dev/fonts/v1/{fontstack}/{range}.pbf",
 
   "sources": {
     "composite": {
