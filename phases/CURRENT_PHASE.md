@@ -1,164 +1,154 @@
-# Phase 3: Backend Foundation
+# Phase 4: Map Renderer Integration
 
 **Detail level:** Medium (expand at kickoff if you want full detail)
-**Estimated duration:** 3-5 working days
+**Estimated duration:** 3-4 working days
 
 ## Project context
 
-Set up the backend that stores SavedPlace records, authenticates users,
-and exposes the OG metadata fetcher Edge Function. Schema in
-`spec/data-shapes.ts` is provider-agnostic; Phase 3 commits to a
-specific provider.
+Drop the locked map spec into the running Expo app. Get the base map
+rendering with all D8/D11 visual decisions intact (cool warm-shifted
+base, deep indigo brand reserved for user pins, Pretendard labels,
+zoom-rule visibility, transfer-station differentiation). Render mock
+SavedPlace + anchor pins to verify the renderer works end-to-end
+*before* Phase 5 wires up the real save flow.
 
-Recommended: **Supabase** (Postgres + Auth + Edge Functions in one
-stack, free tier covers v1, RLS provides row-level security out of
-box). Alternative: Firestore (mature but Google-coupled, no SQL).
-
-Backend is the dependency for both Phase 5 (save flow needs to write
-SavedPlace) and Phase 6 (onboarding needs auth). Lock the provider
-decision here, do NOT defer.
+This phase is pure integration: no business logic, no auth, no save
+flow. Just "do the locked specs render correctly?"
 
 ## Locked decisions referenced
 
-- DESIGN.md § D6 Data Model: 15-field SavedPlace schema
-- `spec/data-shapes.ts`: TypeScript types — port to SQL DDL with same
-  field names + types
-- DESIGN.md § Open Questions Q1, Q2: backend + auth provider TBD
-- CLAUDE.md § Reference docs: spec/data-shapes.ts is the schema source
+- DESIGN.md § D8 Visual Foundation
+- DESIGN.md § D9 Marker Shapes (circle saved + rounded square anchor)
+- DESIGN.md § D10 Icon Set (9 single-outline glyphs)
+- DESIGN.md § D11 Zoom Rules + Mobile Interactions
+- `spec/style-light.json` / `spec/style-dark.json`
+- `spec/implementation.tsx` (the integration reference)
+- `spec/data-shapes.ts` (mock data shape)
 
 ## Prerequisites from previous phases
 
-- Phase 1 complete: project scaffolded, `@supabase/supabase-js`
-  installed
-- Phase 2 in progress or complete (parallelizable — Phase 3 doesn't
-  depend on asset hosting)
+- Phase 1 complete: project scaffolded
+- Phase 2 complete: sprite + glyphs hosted, Style JSON URLs filled in
+- Phase 3 complete or in parallel: backend exists (mock data can come
+  from a hardcoded array in Phase 4 if backend not ready)
 
 ## This phase's goal
 
-A working backend with:
-- `saved_places` table with the full 15-field schema, RLS enabled
-- Auth flow (Apple Sign In + Google Sign In; KakaoTalk login optional)
-- OG metadata fetcher Edge Function (resolves a URL → `{ title, image
-  _url, description, og_fetch_status }`)
-- Test user creatable + can save + retrieve places
+The PersonalMap component renders correctly with:
+- Locked base map (warm cream / dark surface depending on mode)
+- All 9 icons appearing as expected on test pins
+- Anchor pins (rounded square) visually distinct from saved pins
+  (circle, expanding to teardrop on tap)
+- Cluster behavior at zoom 12-13, individual pins at zoom 14+
+- Light/dark mode auto-switches with `Appearance` API
+- Korean labels rendering (subway stations, district names, parks)
+- Transfer stations visibly larger than regular stations at zoom 14
+- Tap and long-press handlers wired (firing alerts/console.log for
+  this phase; real handlers in Phase 7+)
 
 ## Concrete tasks
 
-1. **Lock backend provider** in PROJECT_STATE.md → Open decisions →
-   Resolved. Default: Supabase.
+1. **Drop spec/ files into project** — `data-shapes.ts`,
+   `implementation.tsx`, both Style JSONs, `tokens.json`. Update import
+   paths if you reorganized the folder layout in Phase 1.
 
-2. **Provision Supabase project** at `supabase.com/dashboard`. Note
-   project URL + anon key into `.env`.
-
-3. **Translate schema** from `spec/data-shapes.ts` to SQL DDL:
-   ```sql
-   CREATE TABLE saved_places (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-     name TEXT NOT NULL,
-     lat DOUBLE PRECISION NOT NULL,
-     lng DOUBLE PRECISION NOT NULL,
-     category TEXT NOT NULL CHECK (category IN ('CAFE','RESTAURANT','BAR','SHOP','LANDMARK','HOME','SCHOOL','WORK','OTHER')),
-     source_url TEXT,
-     og_title TEXT, og_image_url TEXT, og_description TEXT,
-     og_fetched_at TIMESTAMPTZ, og_fetch_status TEXT,
-     note TEXT,
-     visited BOOLEAN NOT NULL DEFAULT false,
-     color_tag TEXT NOT NULL DEFAULT 'NONE' CHECK (color_tag IN ('NONE','RED','ORANGE','YELLOW','GREEN','BLUE','PURPLE')),
-     address TEXT, region TEXT,
-     saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-     visited_at TIMESTAMPTZ
-   );
-   CREATE INDEX saved_places_user_idx ON saved_places(user_id);
-   CREATE INDEX saved_places_user_region_idx ON saved_places(user_id, region);
+2. **Configure Mapbox public token** at app start:
+   ```ts
+   // App.tsx or root index
+   import Mapbox from '@rnmapbox/maps';
+   Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN!);
    ```
 
-4. **Enable RLS** with policy: users can only see/modify their own
-   places.
-   ```sql
-   ALTER TABLE saved_places ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "users see own places" ON saved_places
-     FOR ALL USING (auth.uid() = user_id);
+3. **Implement PersonalMap component** by adapting
+   `spec/implementation.tsx` to your project structure. Add the
+   refinements noted in implementation.tsx comments:
+   - CircleLayer + SymbolLayer pair for individual saved pins
+     (CircleLayer = indigo background; SymbolLayer = white icon glyph)
+   - Same pair for anchors with `indigo_soft` background
+   - Cluster bubble already done in implementation.tsx reference
+
+4. **Wire up dark/light style switching** with `Appearance.addChangeListener`
+   per implementation.tsx. Test by toggling in iOS Simulator
+   (Features → Toggle Appearance) and Android Emulator settings.
+
+5. **Create mock data** — `src/dev/mock-places.ts`:
+   ```ts
+   export const MOCK_PLACES: SavedPlace[] = [
+     // 3 anchors: HOME 강남, WORK 성수, SCHOOL 신촌
+     // 5 saved: cafes/restaurants in 성수동
+     // 2 visited (outlined state)
+   ];
    ```
+   Wire into App.tsx as `<PersonalMap savedPlaces={MOCK_PLACES} />`.
 
-5. **Configure auth providers** in Supabase dashboard:
-   - Apple Sign In (required for App Store)
-   - Google Sign In (Android)
-   - Email/password (fallback)
-   - KakaoTalk (optional v1; matches Korean Gen Z habit but adds
-     Kakao SDK dependency — decide based on team capacity)
+6. **Test rendering across zooms.** Manual checklist:
+   - Zoom 10: only province labels visible, no pins
+   - Zoom 12: 구 labels + anchors + clusters visible
+   - Zoom 13: subway hub lines (1/2/3/4/9) appear
+   - Zoom 14: all subway lines, station dots, transfer stations
+     larger; clusters end, individual pins
+   - Zoom 16: street names, station names, building footprints fade in
+   - Zoom 18: alleys, full detail (no building labels per D11 lock)
 
-6. **Write OG fetcher Edge Function** at
-   `supabase/functions/og-resolver/index.ts`:
-   - Input: `{ url: string }`
-   - Output: `{ title, image_url, description, og_fetch_status }`
-   - Implementation: fetch the URL, parse OG meta tags, handle
-     Instagram gating (return `status: 'GATED'` if Instagram returns
-     no useful OG)
-   - Timeout: 4 seconds max (don't block the save UX)
-   - Cache: respect `og_fetched_at` if recent (<30 days)
+7. **Test interaction** — tap and long-press on pins. Verify:
+   - Single tap on saved pin → `onPinTap(id)` fires; pin "expands"
+     visually (animation TBD — basic scale 1.1 fine for Phase 4;
+     full circle→teardrop in Phase 7)
+   - Single tap on cluster → smooth zoom-in
+   - Long-press → fires `onPinLongPress(id)` (just console.log it for
+     Phase 4)
 
-7. **Write Supabase client wrapper** in `src/supabase.ts` with type-
-   safe wrappers around `from('saved_places').*` operations. Reference
-   `spec/data-shapes.ts` types — never duplicate them.
+8. **Verify on both platforms.** iOS Simulator + Android Emulator at
+   minimum; real devices preferred.
 
-8. **Write `src/places/repo.ts`** with `savePlace()`, `getPlaces()`,
-   `updatePlace()`, `deletePlace()` functions. Use the GeoJSON helpers
-   from `spec/data-shapes.ts` to convert between SavedPlace and
-   GeoJSON Feature.
-
-9. **Test end-to-end** with a hardcoded test user:
-   - Create user via auth API
-   - Save 3 places via repo functions
-   - Retrieve them
-   - Verify RLS by querying with a different user_id (should return 0)
-
-10. **Document env vars** added to `.env`:
-    `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+9. **Document any deviations** from implementation.tsx in
+   PROJECT_STATE.md.
 
 ## Verification
 
-- [ ] `saved_places` table exists with 15 columns matching schema
-- [ ] RLS policy verified by attempting cross-user read (should fail)
-- [ ] At least 2 auth providers configured (Apple + Google or
-      Apple + Email)
-- [ ] OG fetcher returns valid response for test URLs:
-      - Naver Place URL → returns title + image_url
-      - Instagram URL → returns `og_fetch_status: 'GATED'` if no public
-        OG, or `OK` if available
-      - Random URL → returns best-effort or `og_fetch_status: 'FAILED'`
-- [ ] `pnpm typecheck` passes after adding Supabase wrappers
+- [ ] Map loads without errors on iOS + Android
+- [ ] All 9 icon types render correctly (test by including each in
+      mock data)
+- [ ] Anchor pins visually different from saved pins (square vs
+      circle/teardrop)
+- [ ] Visited state outlined treatment works (1 mock place with
+      `visited: true`)
+- [ ] Cluster bubble appears at zoom 12-13 with count
+- [ ] Korean station labels render (e.g., 강남, 성수, 홍대입구) — NOT
+      English transliterations
+- [ ] Park labels in italic (or parks_dark color if italic deferred
+      per fonts/BUILD-PBF.md option 3)
+- [ ] Brand indigo NOWHERE on the base map (verify by inspecting any
+      label, road, or POI — none should be indigo)
+- [ ] Dark mode switch works without restart
 
 ## Anti-patterns
 
-- Do NOT skip RLS — without it, any user can read all SavedPlace
-  records of all users (catastrophic privacy bug)
-- Do NOT hard-code Supabase URL/keys in source — use `.env` per Phase 1
-- Do NOT block the save UX on OG fetch — async + cache, never sync
-- Do NOT store user passwords in your DB if using Supabase Auth — auth
-  is handled by Supabase's `auth.users` table, separate from your
-  app schema
+- Do NOT modify Style JSONs to debug rendering — they're locked
+  artifacts. If something looks wrong, debug at the runtime layer
+  (CircleLayer/SymbolLayer paint properties) or surface as a Style
+  JSON issue in PROJECT_STATE.md
+- Do NOT hardcode color values in components — use `tokens.json`
+- Do NOT add hover states (mobile-only, no hover per D11 lock)
+- Do NOT enable two-finger rotate (disabled per D11 lock)
 
 ## Handoff
 
 When complete, update PROJECT_STATE.md with:
-- Backend provider locked: Supabase (or alternative + reason)
-- Supabase project URL (without anon key — that's in .env, not state)
-- Auth providers configured
-- Edge Function URL pattern
-- Migration approach for v1.5 (`pg_dump` → restore on alternative
-  provider if forced to migrate)
+- Confirmed: D8/D9/D10/D11 all render as designed
+- Any visual surprises or debt (e.g., "halo on highway roads still
+  weak in light mode despite dark-stroke; revisit in Phase 8")
+- Mock data location for future test reuse
+- iOS + Android render parity confirmed (or mismatches noted)
 
-Then: `ln -sf phase-4-renderer.md phases/CURRENT_PHASE.md`
+Then: `ln -sf phase-5-save-flow-validation.md phases/CURRENT_PHASE.md`
 
 ## Expansion hints
 
 For full detail, focus on:
-- Supabase project provisioning step-by-step
-- Apple Sign In service ID + redirect URL setup (it's annoying)
-- Google OAuth client setup for both iOS (with bundle ID) and Android
-  (with SHA-1 cert fingerprint)
-- KakaoTalk login JS SDK vs native SDK trade-off
-- OG fetcher implementation with proper Instagram fallback handling
-- Migration SQL for adding fields post-launch (alembic-style up/down
-  migrations as `supabase/migrations/*.sql`)
+- @rnmapbox/maps-specific gotchas (tile loading lifecycle, re-render
+  triggers, ShapeSource update batching)
+- Animation timing curves matching D9's 200ms spring spec
+- Performance baseline (FPS at 50 mock pins, GC pauses, etc.)
+- Korean text rendering edge cases (vertical centering at small sizes,
+  fallback when name:ko missing)

@@ -89,7 +89,87 @@ App is on TestFlight (iOS) and Play Console internal testing track
 
 7. **Decide branded display name** (DESIGN.md § Open Q3 lock here).
    Goes in app.json `expo.name` and surfaces in iOS share menu +
-   Android intent picker.
+   Android intent picker. **Also lock `ios.bundleIdentifier` +
+   `android.package` here** (currently placeholder
+   `com.gachi2026.mymap`). Both are immutable once published — see
+   PROJECT_STATE.md Open decisions. Pick reverse-DNS aligned with
+   the branded display name.
+
+### Auth provider activation (deferred from Phase 3)
+
+Phase 3 wired email/password only. The locked Trigger 1 decision
+(2026-04-30) is Apple + Google + Email at v1; configuration
+deferred to here because both Apple and Google OAuth clients tie
+to artifacts that don't exist until this phase (Apple Developer
+Program enrollment, locked bundleIdentifier, EAS-generated SHA-1
+keystore fingerprint). See PROJECT_STATE.md cross-phase issue
+"Apple Sign In + Google Sign In configuration deferred to Phase 10"
+for the full rationale.
+
+7a. **Apple Developer Program enrollment** ($99/yr) — gateway for
+    both Apple Sign In and TestFlight. Allow 1-2 business days for
+    Apple to activate the account.
+
+7b. **Apple Sign In setup:**
+    - Apple Developer Console → Certificates, IDs & Profiles →
+      Identifiers → register an App ID matching the locked
+      `bundleIdentifier`, with "Sign In with Apple" capability
+    - Create a Services ID (separate from the App ID) for the web
+      callback flow Supabase uses
+    - Set return URL on the Services ID:
+      `https://<ref>.supabase.co/auth/v1/callback`
+    - Generate a `.p8` private key (one-time download — store
+      securely; lost keys can't be re-downloaded)
+    - Generate the Client Secret JWT signed with the `.p8` key
+      (Supabase docs include the script; Client Secret expires
+      every 6 months and must be regenerated — set a calendar
+      reminder)
+    - Supabase dashboard → Authentication → Providers → Apple →
+      enable + paste Services ID + Client Secret + key id + team id
+
+7c. **Google Sign In setup (iOS + Android clients):**
+    - Google Cloud Console → APIs & Services → Credentials → create
+      an iOS OAuth client (with the locked `bundleIdentifier`)
+    - Create an Android OAuth client (requires the SHA-1 cert
+      fingerprint from EAS; get it via
+      `pnpm exec eas credentials --platform android` after first
+      Android EAS build, NOT before — placeholder cert won't work)
+    - Create a Web OAuth client (for the Supabase callback)
+    - Supabase dashboard → Authentication → Providers → Google →
+      enable + paste Web Client ID + iOS Client ID + Android
+      Client ID
+
+7d. **RN app: install OAuth SDKs and wire to Supabase:**
+    ```bash
+    pnpm add @invertase/react-native-apple-authentication
+    pnpm add @react-native-google-signin/google-signin
+    pnpm exec expo prebuild --clean
+    ```
+    Wire to the auth UI built at Phase 6 —
+    `supabase.auth.signInWithIdToken({ provider: 'apple' | 'google',
+    token: <id_token> })`. Email/password from Phase 3 stays as a
+    fallback path (account-recovery + dev testing).
+
+7e. **Verification:**
+    - Apple Sign In end-to-end on iOS Simulator (Mac required) OR
+      EAS preview build on a physical iPhone
+    - Google Sign In on Android emulator/device
+    - Verify both create rows in `auth.users` and that RLS still
+      isolates: a place inserted by an Apple-signed user must be
+      invisible to a Google-signed user with a different
+      `auth.uid()` (re-run an adapted version of
+      `scripts/test-phase3-e2e.mjs` against cloud with the new
+      provider tokens)
+    - Email/password keeps working as fallback
+
+KakaoTalk login stays deferred to **v1.5** per the locked Trigger 1
+decision (see PROJECT_STATE.md "Open decisions"). The v1.5
+addition path: Supabase dashboard → Auth → Providers → Kakao
+(natively supported, just enable); `pnpm add
+@react-native-seoul/kakao-login`; use
+`supabase.auth.linkIdentity({ provider: 'kakao' })` to merge any
+email-account collisions; bump age rating from 4+ to 12+ per
+RELEASE_CHECKLIST Trigger 5.
 
 8. **App Store screenshots** (required: 6.7", 6.5", 5.5" iPhone +
    12.9" iPad if iPad supported):

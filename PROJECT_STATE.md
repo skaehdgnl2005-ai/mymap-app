@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-04-30 (Trigger 1 decisions locked: backend = Supabase, auth = Apple + Google + Email; Phase 3 ready to start)
+Last updated: 2026-04-30 (Phase 3 backend foundation completed: schema + RLS + OG resolver Edge Function deployed to cloud; Apple/Google OAuth config deferred to Phase 10; Phase 4 ready to start)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -8,14 +8,18 @@ Last updated: 2026-04-30 (Trigger 1 decisions locked: backend = Supabase, auth =
 
 ## Current phase
 
-Phase 2 — Completed (verified all 11 sample asset URLs return 200 +
-correct content-type + `Cache-Control: ... immutable`; placeholders in
-`spec/style-{light,dark}.json` swapped to the R2 public URL). Active
-`phases/CURRENT_PHASE.md` → `phase-3-backend.md`. Phase 3 ready to start.
+Phase 3 — Completed (12/12 local E2E PASS verifying RLS isolation, anon
+deny via `permission denied`, OG resolver Naver/Instagram/example.com
+classification, SSRF guard rejecting 127.0.0.1; cloud round-trip gate
+passed via `supabase link` + `db push` (both migrations applied) +
+`functions deploy og-resolver`). Active `phases/CURRENT_PHASE.md` →
+`phase-4-renderer.md`. Phase 4 ready to start.
 
-Trigger 1 decisions locked 2026-04-30: backend = Supabase, auth =
-Apple Sign In + Google Sign In + Email/password (KakaoTalk deferred
-to v1.5). See "Open decisions" section for rationale.
+Apple Sign In + Google Sign In configuration deferred from Phase 3 to
+Phase 10 — the *decision* (Apple + Google + Email at v1) stays locked,
+only the *configuration timing* shifts (depends on Apple Developer
+Program enrollment + locked bundleIdentifier + EAS SHA-1 fingerprint,
+all Phase 10 artifacts). See Cross-phase issues for full rationale.
 
 ## Environment & setup decisions
 
@@ -252,9 +256,223 @@ to v1.5). See "Open decisions" section for rationale.
   - Recommended Phase 3+ doc tweaks: none. Phase 3 backend doc is
     medium-detail per `phases/README.md` — expand at Phase 3 kickoff.
 
+- [x] Phase 3: Backend foundation
+  - Completed: 2026-04-30
+  - Duration: 1 working day (single session — local stack boot + 2
+    migrations + Edge Function + repo wrappers + 12/12 E2E + cloud
+    round-trip in one continuous flow)
+  - Verification gate (all passed):
+    - `pnpm typecheck` ✓ (strict + `exactOptionalPropertyTypes` clean
+      across `src/` + repo wrappers)
+    - `pnpm lint` ✓ (ESLint flat config; 180 prettier auto-fixes
+      applied; `supabase/functions/` + `build/` + `spec/` ignored)
+    - `pnpm db:gen-types` ✓ (Pattern A drift verification — generated
+      shape matches hand-written `src/types/database.ts` modulo my
+      union-type tightening over `gen`'s plain-string defaults)
+    - **Local E2E: 12/12 PASS** via
+      `node scripts/test-phase3-e2e.mjs` against local Supabase stack:
+      - User A/B creation via service-role admin API
+      - User A inserts 3 places (Korean cafe / market / HOME anchor)
+      - User A reads own rows → 3 rows
+      - **RLS isolation:** User B reads → 0 rows (cross-user empty)
+      - **RLS WITH CHECK:** User B insert with A's user_id →
+        `new row violates row-level security policy for table "saved_places"`
+      - **Anon access:** PostgREST returns
+        `permission denied for table saved_places` (REVOKE working)
+      - OG resolver: Naver landing → status=OK, title=네이버
+      - OG resolver: Instagram fake post → status=GATED, title=Instagram
+        (gating detection working)
+      - OG resolver: example.com → status=OK, title=Example Domain
+      - **SSRF guard:** `http://127.0.0.1:8080/admin` → 400 Unsafe URL
+        (private IP rejected before fetch)
+    - **Cloud round-trip (per user-requested gate before Phase 4):**
+      - `supabase link --project-ref <ref>` ✓
+      - `supabase db push` ✓ — both migrations applied to cloud
+        Postgres (no version/extension drift; the failure mode this
+        gate exists to catch)
+      - `supabase functions deploy og-resolver` ✓
+        (58.38 kB bundle, dashboard-visible)
+  - Locked tooling versions:
+    - `@supabase/supabase-js`: ^2.104.1 (RN client + scripts test
+      runner; Edge Function pins exactly to `@2.104.1` via esm.sh URL
+      for Edge↔RN parity)
+    - `supabase` CLI: 2.95.6 (project-local devDep via npm;
+      `pnpm.onlyBuiltDependencies` grants postinstall to download Go
+      binary from `github.com/supabase/cli/releases/download/v2.95.6`;
+      SHA256 verified by the postinstall script itself against the
+      release `checksums.txt`)
+    - `react-native-url-polyfill`: ^3.0.0 (Supabase JS RN dependency
+      — Hermes URL globals incomplete)
+    - Postgres: 17.x (Supabase default, both local Docker and cloud)
+  - Cloud project state:
+    - **Project ref:** locked (in `.env`, not in this state file)
+    - **Region:** ap-northeast-2 (Seoul) — Korean-resident user latency
+    - **Auth providers enabled:** Email/password only at Phase 3
+      (Apple + Google deferred — see Cross-phase issues)
+    - **Edge Functions deployed:** `og-resolver`
+    - **Free tier:** 50k MAU + 500 MB DB + 2 GB egress (well within
+      v1 needs); auto-pauses after 7 days inactive — see Cross-phase
+      issues for the operational note
+  - Files created (key paths):
+    - `supabase/config.toml` (auto from `supabase init`; defaults are
+      dev-friendly: `enable_signup=true`,
+      `enable_confirmations=false`, `enable_anonymous_sign_ins=false`
+      — no edits needed)
+    - `supabase/migrations/20260430025258_initial_schema.sql` —
+      `saved_places` (15 user-visible fields + 4 system:
+      id/user_id/saved_at/visited_at = 19 columns total) + 2 indexes
+      (`saved_places_user_idx`, `saved_places_user_region_idx`) + RLS
+      policy (`saved_places: own rows only` for `authenticated`
+      role) + `REVOKE ALL ON saved_places FROM anon`
+      (belt-and-suspenders fail-loud)
+    - `supabase/migrations/20260430025510_og_resolver_rate.sql` —
+      `og_resolver_rate` table + `check_og_rate_limit(p_max_per_min INT
+      DEFAULT 60)` SECURITY DEFINER plpgsql function. Identity from
+      `auth.uid()` inside the function, NOT a caller-supplied arg, to
+      prevent rate-limit bypass via spoofed user_id.
+    - `supabase/functions/og-resolver/index.ts` — Deno Edge Function:
+      SSRF guard (private/loopback/link-local IP block), 4s timeout,
+      1MB HTML cap, regex OG parser (no `deno-dom` dep), Instagram-
+      gated detection (logged-out IG returns og:title `Instagram` +
+      generic description → mark GATED), RPC rate-limit gate, CORS
+      headers for v1.5 web PWA
+    - `supabase/.gitignore` (auto)
+    - `src/supabase.ts` — `createClient<Database>` with AsyncStorage
+      session persistence + `react-native-url-polyfill/auto`; throws
+      hard if `EXPO_PUBLIC_SUPABASE_URL` / `_ANON_KEY` missing
+    - `src/types/database.ts` — hand-written `Database` type
+      (Pattern A) deriving Row/Insert/Update from
+      `spec/data-shapes.ts` `SavedPlace` via `Identity<T>` mapped-type
+      wrapper. Identity wrapper is load-bearing — TypeScript's strict
+      structural subtyping rejects interfaces (extensible via
+      declaration merging) as candidates for `Record<string, unknown>`,
+      which is exactly what supabase-js `GenericSchema.Tables.<x>.Row`
+      requires. Without `Identity<T>`, `from('saved_places').insert(...)`
+      infers Insert as `never` and the call won't compile.
+    - `src/places/repo.ts` — typed CRUD wrappers (`listPlaces`,
+      `listPlacesByRegion`, `getPlace`, `savePlace`, `updatePlace`,
+      `deletePlace`) + `resolveOgMetadata` Edge Function client.
+      `Result<T, E>` tagged-union return shape so UI branches on
+      `error` without try/catch.
+    - `scripts/test-phase3-e2e.mjs` — Node E2E against local stack
+      (uses hardcoded local Supabase keys — they're stable across
+      `supabase start` boots, not secrets). Cloud-aware variant
+      (env-var override) deferred — service-role key needs to enter
+      env to enable user-creation tests against cloud.
+    - `build/db.types.generated.ts` (gitignored) —
+      `supabase gen types typescript --local` output for drift
+      verification against `src/types/database.ts`.
+  - Files modified (key paths):
+    - `package.json` — deps `@supabase/supabase-js@^2.104.1`,
+      `react-native-url-polyfill@^3.0.0`; devDep `supabase@^2.95.6`;
+      `pnpm.onlyBuiltDependencies` += `supabase`; script
+      `db:gen-types` (cross-platform via
+      `node -e "require('fs').mkdirSync('build',{recursive:true})"`
+      then `supabase gen types typescript --local`)
+    - `pnpm-lock.yaml` — corresponding deps
+    - `tsconfig.json` — `exclude` field added: `node_modules`,
+      `supabase/functions`, `build`, `android`, `ios`. Edge Functions
+      use Deno (esm.sh imports + `Deno.serve`), not Node — they have
+      their own type-check story via `deno check` if needed.
+    - `eslint.config.js` — `ignores` += `supabase/functions/**`,
+      `build/**` (Deno-style imports + generated artifacts not in
+      ESLint domain)
+    - `.prettierignore` — replaced individual `spec/*.json` entries
+      with the whole `spec/` directory (prettier was collapsing
+      hand-aligned column comments + multi-line union literals in
+      `spec/data-shapes.ts` and `spec/implementation.tsx` — purely
+      cosmetic but disrespects the design-locked layout); added
+      `build/` and `supabase/.temp/`
+  - Mid-phase decisions:
+    - **Type-generation strategy: Pattern A** — `spec/data-shapes.ts`
+      remains single source of truth; `src/types/database.ts`
+      hand-derives the `Database` shape via `Omit`/`Partial` of
+      `SavedPlace` plus an `Identity<T>` mapped-type wrapper.
+      Pattern B (gen types as SoT, `data-shapes.ts` as a thin wrapper)
+      rejected because (a) `spec/` is approval-required so
+      auto-derivation undermines the review gate, (b) gen types are
+      noisy (every column nullable + `Json` types) and would need
+      heavy post-processing to recover the hand-written richness.
+      Drift gate stays manual until Phase 5/6 when migration count
+      grows.
+    - **Two migrations not one** — `saved_places` separated from
+      `og_resolver_rate` for concern isolation. Either can be reverted
+      without touching the other; rate-limit infrastructure isn't
+      load-bearing for the canonical user-data table.
+    - **OG resolver rate limit identity from `auth.uid()`, not a
+      caller arg** — first draft of `check_og_rate_limit(p_user_id
+      UUID, ...)` accepted user_id as a parameter, which would let a
+      malicious caller pass another user's UUID and bypass their own
+      rate limit. Caught in mid-implementation review. Final shape:
+      function takes only `p_max_per_min INT`, derives identity from
+      `auth.uid()` (works inside `SECURITY DEFINER` because JWT
+      context is request-scoped, not execution-role-scoped).
+    - **Edge Function imports from `https://esm.sh/...`** — Deno
+      standard pattern. Pinned exactly to
+      `@supabase/supabase-js@2.104.1` to match the npm-resolved RN
+      client version. Edge↔RN parity reduces surprise behavior.
+    - **`supabase` CLI npm package over global `scoop install`** —
+      matches the Phase 2 wrangler precedent (project-local devDep,
+      version-pinned in lockfile). Required
+      `pnpm.onlyBuiltDependencies += "supabase"` to permit the
+      postinstall script that downloads the Go binary; without that,
+      `pnpm exec supabase` fails with "command not found". The
+      postinstall verifies its own SHA256 against the GitHub release
+      `checksums.txt` before installing.
+    - **`db:gen-types` script: `node -e fs.mkdirSync` not `mkdir -p`**
+      — `mkdir -p` is a Bash idiom; on Windows pnpm scripts run via
+      cmd.exe by default and cmd's `mkdir` doesn't understand `-p`.
+      Cross-platform Node form keeps the script portable for CI /
+      future Mac development.
+    - **Belt-and-suspenders anon deny** —
+      `REVOKE ALL ON saved_places FROM anon` on top of "no policy for
+      anon role". Without REVOKE, PostgREST falls back to `[]` (silent
+      empty) for unauthenticated reads; with REVOKE, it returns
+      explicit `permission denied for table saved_places` — fail-loud
+      preferred over fail-quiet for a security boundary. E2E test
+      asserts the explicit error message.
+    - **PostGIS NOT enabled at v1** — the locked spec has no
+      server-side geo queries (clients render all of a user's saved
+      places — small N — from a single SELECT). Migration 1 documents
+      the deliberate omission. Revisit at Phase 4+ if the renderer
+      needs server-side viewport-bbox filtering.
+    - **OG cache check is the CALLER's job** — Edge Function is
+      stateless on the OG cache. The repo `resolveOgMetadata`
+      callers (Phase 5 save flow) check `og_fetched_at` < 30 days
+      before invoking. Keeps the function testable, reusable, and
+      free of cross-table writes.
+    - **prettier scope tightened to whole `spec/`** — was ignoring
+      only `spec/style-{light,dark}.json` + `spec/tokens.json`.
+      `pnpm format` was reformatting `spec/data-shapes.ts` +
+      `spec/implementation.tsx` column-aligned comments. spec/ is
+      design-locked; the hand-shaped layout is intentional reading
+      aid. Reverted the prettier-mutation diffs and broadened ignore.
+    - **Cloud E2E NOT run** — full E2E against cloud needs the
+      service_role key to enter `.env` (admin createUser /
+      deleteUser). Decision: deploy success messages
+      (`db push` + `functions deploy`) ARE the cloud verification
+      signal. Local E2E (12/12) covered the actual logic. If cloud
+      E2E is needed later (e.g., regression check), the user can
+      grab service_role from dashboard, set `SUPABASE_SECRET=...`
+      and run a future env-aware variant of the script.
+  - Cross-phase drift detected: Apple/Google OAuth provider
+    configuration moved from Phase 3 step 5 to Phase 10 (see new
+    Cross-phase issues entry below); Free Supabase project auto-pause
+    behavior added as operational note.
+  - Recommended Phase 4+ doc tweaks:
+    - Phase 4 doc: reference `src/places/repo.ts → listPlaces()` +
+      `partitionPlaces()` (from `spec/data-shapes.ts`) for feeding
+      the Mapbox ShapeSources.
+    - Phase 5 doc: document the OG resolver caller contract
+      (check `og_fetched_at` before invoking; persist returned
+      fields into the `saved_places` row; set `og_fetched_at = now()`
+      on completion).
+    - Phase 5/6 doc: add "promote `pnpm db:gen-types` to CI gate"
+      task once a 2nd public-facing table lands (currently the drift
+      surface is small enough for manual diff to suffice).
+
 ## Pending phases
 
-- [ ] Phase 3: Backend foundation (Supabase + schema + auth + OG fetcher)
 - [ ] Phase 4: Map renderer integration (PersonalMap component + dark mode)
 - [ ] Phase 5: Save-flow MVP — VALIDATION GATE (share-ext + URL classifier + Kakao auto-resolve)
 - [ ] Phase 6: Onboarding + auth flow (2-step anchor, hint card)
@@ -462,6 +680,82 @@ This is a permanent property of this dev environment, not a fix-someday
 issue — recorded so a future contributor on Windows doesn't waste a
 day on `node-gyp ERR! find VS` before finding the docker recipe.
 
+### Apple Sign In + Google Sign In configuration deferred to Phase 10
+
+Phase 3 doc step 5 originally included "Configure auth providers:
+Apple Sign In + Google Sign In" alongside Email/password.
+**Configuration moved to Phase 10**; the *decision* (locked
+2026-04-30) is unchanged — Apple + Google + Email is still v1 scope.
+KakaoTalk stays deferred to v1.5 per existing Open decisions entry.
+
+**Why deferred:** OAuth client configuration depends on three
+Phase 10 artifacts that don't exist yet, and configuring against
+placeholders would force rotation later (which means creating new
+OAuth clients + invalidating old + all dev-environment tokens
+expiring):
+
+1. **Apple Sign In** requires the Apple Developer Program ($99/yr
+   enrollment). Phase 1 cross-phase issue "First EAS iOS Build
+   deferred to end of Phase 4" already pushes this purchase to
+   **Phase 10**. Without the Developer account there's no Service ID
+   to give Supabase.
+
+2. **Google Sign In iOS client** ties to `ios.bundleIdentifier`,
+   currently the placeholder `com.gachi2026.mymap` (see Open
+   decisions). The real bundle id locks at Phase 10 alongside the
+   App Store name.
+
+3. **Google Sign In Android client** ties to the EAS-generated SHA-1
+   keystore fingerprint. EAS doesn't generate the keystore until
+   first build, deferred to Phase 4 close per the existing iOS
+   build entry.
+
+**Phase 3-9 dev runs on email/password only.** RLS uses `auth.uid()`
+which is provider-agnostic — the migration (`saved_places: own rows
+only` policy) is correct regardless of which providers the user
+authenticated through. Adding Apple + Google at Phase 10 requires
+only dashboard config + native SDK install
+(`@invertase/react-native-apple-authentication`,
+`@react-native-google-signin/google-signin`); no schema changes,
+no repo changes.
+
+**To resolve at Phase 10** (alongside bundle ID lock + Apple Dev
+Program enrollment):
+
+1. Apple Developer Console → enroll → create Service ID + Sign In
+   with Apple capability + return URL
+   `https://<ref>.supabase.co/auth/v1/callback`.
+2. Google Cloud Console → create iOS OAuth client (bundle id) +
+   Android OAuth client (SHA-1 from EAS keystore).
+3. Supabase dashboard → Authentication → Providers → enable Apple +
+   Google with the credentials above.
+4. RN app: install
+   `@invertase/react-native-apple-authentication` +
+   `@react-native-google-signin/google-signin` (config plugins) and
+   wire to `supabase.auth.signInWithIdToken({...})`.
+
+The full task list is patched into `phases/phase-10-polish.md` this
+phase; this entry is the cross-phase summary so a future Phase
+session understands why Apple/Google aren't enabled in Supabase
+dashboard yet.
+
+### Free Supabase project auto-pauses after 7 days inactive
+
+Free-tier Supabase projects auto-pause if no requests hit the
+project for 7 consecutive days. **Data is preserved**; pause is
+reversible from the dashboard with one click. Restored project
+resumes at the same URL/keys.
+
+**Operational impact:** if a developer takes >1 week off between
+Phase sessions, the cloud project may be paused on return. Symptom:
+`supabase db push` or REST calls return 503 / connection errors.
+Resolution: open dashboard → click "Restore project" → wait ~30s.
+
+**Avoid in production:** upgrade to Supabase Pro ($25/mo) at
+Phase 10 if the user count justifies it. v1 launch on free tier is
+fine if check-ins are weekly+; if the app is dormant pre-launch
+(e.g., between phases), manual unpause is the cost.
+
 ## Active blockers
 
-(empty — Phase 3 ready to start)
+(empty — Phase 4 ready to start)

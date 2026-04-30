@@ -24,6 +24,8 @@ module.exports = defineConfig([
       'fonts/**',
       'phases/**',
       'spec/**',
+      'supabase/functions/**', // Deno runtime; uses esm.sh URL imports
+      'build/**', // generated artifacts (sprite atlas, gen db types, PBFs)
     ],
   },
 ]);

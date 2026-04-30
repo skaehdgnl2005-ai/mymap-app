@@ -8,6 +8,6 @@ sprites
 fonts
 phases
 *.md
-spec/style-light.json
-spec/style-dark.json
-spec/tokens.json
+spec/
+build/
+supabase/.temp/
