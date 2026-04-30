@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-04-28 (Phase 2 complete; ready for Phase 3 — backend foundation)
+Last updated: 2026-04-30 (Trigger 1 decisions locked: backend = Supabase, auth = Apple + Google + Email; Phase 3 ready to start)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -13,10 +13,9 @@ correct content-type + `Cache-Control: ... immutable`; placeholders in
 `spec/style-{light,dark}.json` swapped to the R2 public URL). Active
 `phases/CURRENT_PHASE.md` → `phase-3-backend.md`. Phase 3 ready to start.
 
-Open decisions to lock at Phase 3 kickoff: backend choice
-(Supabase / Firestore / custom), authentication provider (Apple +
-Google required for App Store; KakaoTalk optional). See "Open
-decisions" section.
+Trigger 1 decisions locked 2026-04-30: backend = Supabase, auth =
+Apple Sign In + Google Sign In + Email/password (KakaoTalk deferred
+to v1.5). See "Open decisions" section for rationale.
 
 ## Environment & setup decisions
 
@@ -266,13 +265,6 @@ decisions" section.
 
 ## Open decisions (not yet locked)
 
-- **Backend choice (Phase 3):** Supabase recommended over Firestore for
-  Postgres + Edge Functions + Auth in one stack, but final lock pending
-  Phase 3 kickoff. If push comes to shove, schema in `spec/data-shapes.ts`
-  is provider-agnostic.
-- **Authentication provider (Phase 3/6):** Apple Sign In + Google Sign In
-  required for App Store policy. KakaoTalk login optional — adds Kakao
-  SDK dependency but matches Korean Gen Z habit. Decide at Phase 3.
 - **App Store branded display name (pre-Phase 5):** the iOS share menu
   and Android intent picker both display the app's localized name.
   Pick before Phase 5 ships.
@@ -285,6 +277,23 @@ decisions" section.
   Phase 10. Changing it later requires a new app listing from scratch.
 - ~~CDN provider (Phase 2)~~ — **LOCKED 2026-04-28: Cloudflare R2.**
   See "Phase 2 mid-phase decisions" in Current phase block above.
+- ~~Backend choice (Phase 3)~~ — **LOCKED 2026-04-30: Supabase.**
+  Postgres + Auth + Edge Functions in one stack; free tier covers v1
+  (~50k MAU); RLS enforces per-user data isolation out of box; Edge
+  Function will host the OG fetcher (resolves DESIGN.md Open Q5
+  in-stack). Schema in `spec/data-shapes.ts` stays provider-agnostic
+  for future `pg_dump` → alternative-Postgres migration if forced.
+- ~~Authentication providers (Phase 3 / 6)~~ — **LOCKED 2026-04-30:
+  Apple Sign In + Google Sign In + Email/password. KakaoTalk deferred
+  to v1.5.** Apple required for App Store policy; Google standard for
+  Android; Email as account-recovery fallback. KakaoTalk pushed to v1.5
+  to (a) avoid Kakao SDK native dependency at v1, (b) keep age rating
+  at 4+ (Kakao SDK pushes to 12+ — see RELEASE_CHECKLIST.md Trigger 5),
+  (c) preserve solo-founder capacity. v1.5 addition path: enable Kakao
+  OAuth in Supabase dashboard + install Kakao SDK + use
+  `supabase.auth.linkIdentity()` to merge any email-account collisions.
+  Migration cohort at v1.5 is small (success criteria target: 30 users
+  by week 4), so account-linking UX cost is bounded.
 
 ## Cross-phase issues / drift
 
