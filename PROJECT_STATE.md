@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-04-30 (Phase 3 backend foundation completed: schema + RLS + OG resolver Edge Function deployed to cloud; Apple/Google OAuth config deferred to Phase 10; Phase 4 ready to start)
+Last updated: 2026-04-30 (Phase 3 backend foundation completed: schema + RLS + OG resolver Edge Function deployed to cloud; Apple/Google OAuth config deferred to Phase 10; `expo-system-ui` installed early as Trigger 2 item; Phase 4 ready to start)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -544,29 +544,30 @@ pnpm exec eas build --platform ios --profile development --simulator
 Apple Developer Program ($99/yr) becomes required at **Phase 10** for
 TestFlight + App Store, NOT for this build.
 
-### `expo-system-ui` not installed (resolve at Phase 4 kickoff)
+### `expo-system-ui` installed (resolved 2026-04-30, ahead of Phase 4)
 
-`app.config.ts` sets `userInterfaceStyle: 'automatic'` to enable D8 dark
-mode support. At prebuild time, Expo emits a warning:
-
-> » android: userInterfaceStyle: Install expo-system-ui in your project
->   to enable this feature.
-
-Without `expo-system-ui`, the app respects the system theme at boot but
-does not react to runtime theme changes (toggling dark mode while the
-app is open won't trigger a style swap). Acceptable for Phase 1 (default
-Expo screen boot only) but **must be installed at Phase 4 kickoff**
-when `PersonalMap` wires up `Appearance.getColorScheme()` listening per
-`spec/implementation.tsx`.
-
-**To resolve at Phase 4 kickoff:**
+**Resolved 2026-04-30** — installed early as Trigger 2 item from
+`RELEASE_CHECKLIST.md` while Phase 3 was still fresh:
 
 ```bash
-pnpm exec expo install expo-system-ui
-# then regenerate native folders so the config plugin picks it up:
+pnpm exec expo install expo-system-ui          # → ~6.0.9 (SDK 54)
 pnpm exec expo prebuild --platform android --clean
-pnpm android   # verify boot still works
+pnpm typecheck && pnpm lint                     # both clean
 ```
+
+The Phase 1 prebuild warning
+(`» android: userInterfaceStyle: Install expo-system-ui in your project
+to enable this feature.`) no longer fires — that was the actual signal
+this entry existed to chase. Full Android boot + runtime dark-mode
+swap verification deferred to Phase 4 kickoff, where `PersonalMap`
+actually wires `Appearance.addChangeListener` and exercises the
+runtime theme reactivity.
+
+**Original context (kept for archaeology):** `app.config.ts` sets
+`userInterfaceStyle: 'automatic'` to enable D8 dark mode support.
+Without `expo-system-ui`, the app respects the system theme at boot
+but does not react to runtime theme changes (toggling dark mode while
+the app is open won't trigger a style swap).
 
 ### `balanced-match` pinned via `pnpm.overrides`
 

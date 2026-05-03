@@ -32,7 +32,7 @@ context from the source docs and guide each step.
 
 | Item | Reversibility | Where |
 |---|---|---|
-| Install `expo-system-ui` (one command) | ✏️ trivial to install/uninstall | PROJECT_STATE.md → Cross-phase issues → "expo-system-ui not installed" |
+| ~~Install `expo-system-ui` (one command)~~ ✅ done 2026-04-30 | ✏️ trivial to install/uninstall | PROJECT_STATE.md → Cross-phase issues → "expo-system-ui installed (resolved 2026-04-30)" |
 | Run first EAS iOS Build (free Expo account, simulator profile — no Apple Developer Program needed yet) | ✏️ verification only | PROJECT_STATE.md → Cross-phase issues → "First EAS iOS Build" |
 
 ---
