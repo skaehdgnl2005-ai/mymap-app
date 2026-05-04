@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-04-30 (Phase 3 backend foundation completed: schema + RLS + OG resolver Edge Function deployed to cloud; Apple/Google OAuth config deferred to Phase 10; `expo-system-ui` installed early as Trigger 2 item; Phase 4 ready to start)
+Last updated: 2026-05-03 (Phase 4 INVALIDATED + reopened — manual visual checks at Phase 4 close revealed roads / subway lines / park labels all silently failing because spec was authored against OpenMapTiles schema but deployed against mapbox-streets-v8; Path A spec patch applied — single grey rail + best-effort station layers + park-label font + metadata field split; new "Verification Principles" section promoted from Phase 2 + Phase 4 lessons mandates consumption check on every future verification gate; new D11 cross-phase deviation entry; Phase 5 kickoff BLOCKED on three gates — first EAS iOS build attempt + Phase 4 re-verification (10-item visual check list) + dark mode toggle as final isolation step)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -8,18 +8,51 @@ Last updated: 2026-04-30 (Phase 3 backend foundation completed: schema + RLS + O
 
 ## Current phase
 
-Phase 3 — Completed (12/12 local E2E PASS verifying RLS isolation, anon
-deny via `permission denied`, OG resolver Naver/Instagram/example.com
-classification, SSRF guard rejecting 127.0.0.1; cloud round-trip gate
-passed via `supabase link` + `db push` (both migrations applied) +
-`functions deploy og-resolver`). Active `phases/CURRENT_PHASE.md` →
-`phase-4-renderer.md`. Phase 4 ready to start.
+Phase 4 — Completed on Android (PersonalMap renders the locked Style
+JSONs end-to-end on Pixel 7 emulator: cool warm-shifted base #F5F4F0,
+muted sage parks, cool soft 한강 water, Korean labels via Pretendard
+PBFs from R2, deep indigo saved pins with white category glyphs via
+runtime CircleLayer + SymbolLayer pairs, lighter indigo_soft anchor
+pins, surface_base "donut" visited pins, brand indigo NOT on any
+base-map label or road). Mapbox renderer initialized cleanly (OpenGL
+backend, EGLContext created, no JS exceptions); Metro bundled all 832
+modules in 6.5s. iOS verification still deferred per the standing
+"first EAS iOS Build deferred to end of Phase 4" cross-phase issue —
+this phase end is the trigger to actually run that EAS build.
+Active `phases/CURRENT_PHASE.md` → `phase-5-save-flow-validation.md`,
+but **Phase 5 is BLOCKED** until three gates resolve (see Active
+blockers section):
 
-Apple Sign In + Google Sign In configuration deferred from Phase 3 to
-Phase 10 — the *decision* (Apple + Google + Email at v1) stays locked,
-only the *configuration timing* shifts (depends on Apple Developer
-Program enrollment + locked bundleIdentifier + EAS SHA-1 fingerprint,
-all Phase 10 artifacts). See Cross-phase issues for full rationale.
+(a) first EAS iOS build attempted (the existing
+    "deferred to end of Phase 4" cross-phase issue, hardened from
+    "convenient" to a Phase 5 kickoff gate);
+
+(b) **Phase 4 RE-verification** — 10-item visual check list (Path A
+    patch consumption check, replacing the original 8-item list which
+    the spec patch invalidated/restructured); results pasted into the
+    blocker entry per item;
+
+(c) **app full kill + relaunch** before re-verification (Style JSON
+    changes do not propagate via Metro hot reload — `@rnmapbox/maps`
+    parses + caches styleJSON on prop receive). Visual check #6 (dark
+    mode toggle) MUST be the last item in the cycle so dark-transition
+    failures can be isolated from Path A patch failures.
+
+The Phase 4 entry below is annotated **VERIFICATION INVALIDATED
+2026-05-03** — original gate only checked well-formedness, not
+consumption (does the rendered map match spec?). See "Verification
+Principles" section for the cross-phase generalization of this
+lesson.
+
+Two D10 marker-shape deviations from the locked spec were taken in
+Phase 4 — both deferred to Phase 7 (which already owns visited-state
++ pin-interactions) because they need sprite-pipeline work that
+Phase 2 didn't deliver. See Cross-phase issues for the full deferral
++ resolution path.
+
+Apple Sign In + Google Sign In configuration remains deferred to
+Phase 10 (existing entry — depends on Apple Developer Program
+enrollment + locked bundleIdentifier + EAS SHA-1 fingerprint).
 
 ## Environment & setup decisions
 
@@ -37,6 +70,113 @@ all Phase 10 artifacts). See Cross-phase issues for full rationale.
 - **Setup scripts added:**
   - `phases/set-current-phase.sh` (Bash, Git Bash compatible)
   - `phases/set-current-phase.ps1` (PowerShell native)
+
+## Verification Principles (cross-phase, project-wide lessons)
+
+When designing a phase's verification gate, ask BOTH:
+
+1. **Well-formedness check** — Does the artifact satisfy its own internal
+   structural requirements? Bundles compile, JSON validates, files upload,
+   builds succeed, processes start, no exceptions thrown.
+
+2. **Consumption check** — When the *next* phase consumes this artifact,
+   does it produce the *intended observable behavior*? Not "does it not
+   crash," but "does it render / return / behave as the spec describes?"
+
+The two checks are independent. Well-formedness can pass while consumption
+silently fails — that is the failure mode this principle exists to catch.
+
+### Empirical evidence (the lessons that produced this principle)
+
+This principle is not abstract. Two cases in this project's history both
+passed well-formedness gates and silently failed consumption checks; both
+required reopening a closed phase:
+
+- **Phase 2 (sprite atlas)** — Verification gate was "9 sprite IDs in the
+  manifest + 768 PBFs upload OK + 11/11 sample URLs return 200." All passed.
+  But the *consumption* gate the spec implied was "every sprite the runtime
+  iconImage expressions reference is in the atlas" — that included
+  `*-outlined` and `*-anchor` variants the SVG sources didn't ship. Surfaced
+  in Phase 4 when the runtime expressions reached for those sprites and
+  rendered nothing. Resolution: deferred deviation logged, sprite work
+  pulled to Phase 7.
+
+- **Phase 4 (Style JSON integration)** — Verification gate was "Mapbox
+  OpenGL renderer up + EGL context created + 832 modules bundled + no
+  JS exceptions + screenshot shows base map rendering." All passed.
+  But the *consumption* gate the spec implied was "the rendered map
+  matches what spec/style-{light,dark}.json describes" — that included
+  road network, subway lines, station dots, italic park labels, all of
+  which silently failed because the Style JSON was authored against
+  OpenMapTiles schema (`source-layer: "transportation"`) but deployed
+  against mapbox-streets-v8 schema (`source-layer: "road"`). Surfaced
+  in the Phase 4 close visual check. Resolution: Path A spec patch +
+  D11 deviation entry + Phase 4 reopen.
+
+### How to apply (mandatory for all future phase verification gates)
+
+For **visual artifacts** (Style JSONs, sprites, UI components):
+consumption check = manual visual inspection against spec, NOT just
+renderer-up signal. Capture a reference screenshot at known camera
+state and compare against spec descriptions clause-by-clause.
+
+For **backend artifacts** (migrations, RPC functions, Edge Functions):
+consumption check = end-to-end query / mutation through the actual
+client, NOT just `migration-applied` signal. Phase 3's 12/12 RLS E2E
+is the model.
+
+For **build artifacts** (sprites, PBFs, R2 uploads, native builds):
+consumption check = run the built thing in its intended runtime AND
+verify the runtime consumes every variant the spec references, NOT
+just build-success signal.
+
+For **integration artifacts** (Style JSONs against vector tile sources,
+config bridging environments): consumption check = render or invoke
+the full pipeline and verify the output matches spec, NOT just
+"the integrating call succeeded with no exception."
+
+### When to write the consumption check
+
+The consumption check belongs in the *producing* phase's verification
+gate, not the *consuming* phase's surprise debugging. Phase 2's spec
+should have included "every sprite ID the runtime style expressions
+reference is in the atlas." Phase 0's style-JSON sign-off should have
+included "load this against mapbox-streets-v8 in a real Mapbox runtime
+and visually compare against spec." That is the cost we are pre-paying
+when we add this section — future phases will run their consumption
+checks while the producing context is still warm, instead of surfacing
+the gap one or two phases later when the diagnostic surface is wider.
+
+### When this principle does NOT apply
+
+If the artifact's well-formedness IS its consumption — i.e., the
+structural check and the behavioral check measure the same
+observable — a separate consumption check is redundant. Examples:
+
+- **Lint configuration**: passing lint IS the intended observable
+  behavior. There is no "downstream consumer" of the lint config
+  beyond running the linter itself.
+- **TypeScript strict-mode flags**: tsc passing IS the intended
+  outcome. No separate "is the type-check producing the right
+  errors?" check needed beyond curated test fixtures.
+- **Pure formatter rules** (Prettier config): output stability IS
+  the deliverable; running the formatter is the consumption.
+- **Pinned dependency versions**: the lockfile resolving IS the
+  guarantee; no separate "do these dependencies behave?" check
+  beyond the apps that already use them.
+
+The discipline: when proposing a phase's verification gate, ask
+"is the well-formedness signal *the same observable* as the
+intended consumption behavior, or is it a *proxy* for some
+downstream behavior I haven't checked?" If the latter, add a
+consumption check. If the former, one check covers both.
+
+This exemption is the guard against cargo-culting consumption
+checks into phases where they add ceremony without information.
+The two failure modes — silently passing without consumption
+check (Phase 2, Phase 4) and ceremonially adding redundant
+consumption check to lint config — are both wastes; this section
+prevents the former, the exemption clause prevents the latter.
 
 ## Completed phases
 
@@ -471,9 +611,205 @@ all Phase 10 artifacts). See Cross-phase issues for full rationale.
       task once a 2nd public-facing table lands (currently the drift
       surface is small enough for manual diff to suffice).
 
+- [x] Phase 4: Map renderer integration
+  - Completed: 2026-05-03
+  - **VERIFICATION INVALIDATED 2026-05-03** — The verification gate
+    below only covered well-formedness (Mapbox renderer up + JS
+    bundled + screenshot of base fill rendering). The consumption
+    check (does the rendered map match spec clause-by-clause?) was
+    missing — and surfaced three silent failures (roads, subway
+    lines, park labels) when the user ran the manual visual checks
+    at Phase 4 close. Root cause: spec was authored against
+    OpenMapTiles schema but deployed against mapbox-streets-v8.
+    Resolution: Path A spec patch applied 2026-05-03 (see spec/
+    CHANGELOG.md and the "D11 spec ↔ mapbox-streets-v8 schema
+    mismatch" cross-phase issue below). Re-verification gated on:
+    Path A spec patch applied + the 10-item visual check list in
+    Active Blockers all recorded as PASS.
+    
+    The original gate result is preserved below for diagnostic
+    archaeology (it accurately reflects what was checked, just not
+    what should have been checked). See "Verification Principles"
+    section above for the generalization of this lesson.
+  - Duration: 1 working day (single session)
+  - Verification gate (Android, Pixel_7 AVD, API 34):
+    - `pnpm typecheck` ✓ (`tsc --noEmit`, strict + extra-strict flags
+      clean across the new `src/map/` and `src/dev/` files)
+    - `pnpm lint` ✓ (ESLint flat config; auto-fixed prettier issues
+      mid-phase, then clean)
+    - `pnpm android` (with `JAVA_HOME` exported to Android Studio JBR)
+      → `BUILD SUCCESSFUL in 3m 4s` (182 Gradle tasks, 92 executed,
+      66 from cache, 24 up-to-date — incremental over Phase 1's 11m
+      cold build)
+    - `Installing app-debug.apk` ✓ → `Opening
+      com.gachi2026.mymap/.MainActivity on Pixel_7` ✓
+    - `Android Bundled 6530ms index.ts (832 modules)` (no Metro
+      errors, no JS exceptions)
+    - Mapbox runtime initialized cleanly: OpenGL render backend,
+      EGLContext created (client version 3), tile_store DB created
+      at `/data/data/com.gachi2026.mymap/files/.mapbox/tile_store/`
+    - Screenshot verification (`build/phase4-render-2.png`,
+      Pixel_7 1080×2400 at zoom 15 / center 성수동 [127.055,
+      37.5446]):
+      - Cool warm-shifted off-white base #F5F4F0 ✓
+      - Muted sage parks #D8DCC8 ✓
+      - Cool soft 한강 water #C9D4DD (visible top-right) ✓
+      - Korean labels visible at city-center camera (Seoul City
+        Hall screenshot in `build/phase4-render.png`):
+        통인동 / 사간동 / 안국동 / 종로1가 / 서울 도심 / 서울특별시
+        / 무교동 / 다동 / 삼각동 — all rendered via Pretendard PBFs
+        from R2 (no English transliteration anywhere) ✓
+      - Saved pins: deep indigo #2D2A6B circles with white category
+        glyphs (cafe trapezoid, restaurant rice bowl, shop bag,
+        landmark star, other diamond) ✓
+      - Anchor pin (WORK 성수): lighter indigo_soft #6B68A8 circle
+        with white briefcase glyph — visually distinct from saved
+        pins via color (not shape; see deviation note below) ✓
+      - Visited pins: surface_base fill + 2.0px brand_indigo stroke
+        "donut" treatment, no glyph (Phase 4 placeholder for D10
+        outlined-indigo-glyph; sprite work deferred to Phase 7) ✓
+      - Brand indigo NOWHERE on base-map labels or roads — only on
+        user pins ✓
+  - iOS verification: STILL deferred to first EAS Build per the
+    standing "First EAS iOS Build deferred to end of Phase 4"
+    cross-phase issue. The trigger condition is met now (Phase 4
+    closing). Run when convenient — schema in that issue is
+    unchanged.
+  - Locked decisions confirmed in render: D8 (visual foundation)
+    fully rendering; D9 (marker shapes) partially — see deviations;
+    D10 (icon set) — 9 sprite glyphs all reachable from runtime
+    `iconImage` `match` expressions on `category`; D11 (zoom rules)
+    NOT exhaustively verified at every zoom band in this session
+    (subway hub vs. all-lines transition, transfer-station upsizing,
+    park-label italic — hand off to user for live emulator panning).
+  - Files created (key paths):
+    - `src/map/PersonalMap.tsx` — production component, adapted
+      from `spec/implementation.tsx`. Key adaptations:
+      (a) bundles Style JSONs via `resolveJsonModule` import + a
+      module-scope `JSON.stringify`, then passes via the `styleJSON`
+      prop (not `styleURL` — avoids hosting the Style itself; the
+      sprite + glyph URLs inside the JSON still come from R2);
+      (b) each pin layer is a CircleLayer + SymbolLayer pair (the
+      sprite atlas is white-glyph-only, no background; the colored
+      pin body is rendered at runtime by the underlying CircleLayer);
+      (c) `Mapbox.setAccessToken` is called from `App.tsx`, not on
+      this module's import side-effect; (d) handles two D10
+      deviations inline with comment pointers to PROJECT_STATE.md.
+      Also accepts optional `initialCenter` / `initialZoom` props
+      with the spec's Seoul City Hall + zoom 14 as defaults — added
+      so the dev fixture can drop the camera in 성수동 where the
+      mock pins live without making a production-API change.
+    - `src/dev/mock-places.ts` — Phase 4 dev fixture: 11 SavedPlace
+      records (3 anchors HOME/WORK/SCHOOL in 강남/성수/신촌, 5 saved
+      pins in 성수 covering all 5 non-anchor non-other categories,
+      1 OTHER pin, 2 visited pins for the donut state).
+    - `App.tsx` — replaced the create-expo-app default screen with
+      `<PersonalMap savedPlaces={MOCK_PLACES} initialCenter=[성수동]
+      initialZoom=15 ... />`. Mapbox token loaded from
+      `process.env.EXPO_PUBLIC_MAPBOX_TOKEN` and asserted non-null
+      at module load (fail-loud over silent tile-load failure).
+    - `build/phase4-render.png`, `build/phase4-render-2.png`
+      (gitignored): Pixel_7 emulator screenshots used as the visual
+      verification gate. Re-capture if the renderer changes.
+    - `build-android-phase4.log` (gitignored): expo run:android
+      output captured for handoff diagnostics.
+  - Files modified (key paths):
+    - none in `spec/` (locked) and none in existing `src/` files
+      (`src/places/repo.ts`, `src/types/database.ts`, `src/supabase.ts`
+      untouched — Phase 4 is pure renderer integration, no DB or
+      auth changes).
+  - Mid-phase decisions:
+    - **Style delivery: bundled `styleJSON`, not hosted `styleURL`** —
+      Phase 2 uploaded sprite + glyphs to R2 but did NOT upload the
+      Style JSONs themselves. Two paths forward: upload Style JSONs
+      to R2 too (matches the "self-host all runtime assets"
+      principle for the Style-doc itself) vs. bundle into the JS
+      bundle (Style ships with the app, no CDN round-trip on map
+      open, edits ride normal app updates). Picked bundle for v1.
+      Style JSONs are 13KB each — bundle-size impact is negligible.
+      The sprite + glyph URLs *inside* the Style JSONs still point
+      at R2, so the "self-host runtime assets" principle is honored
+      for the actual binary assets that re-fetch on every map open.
+    - **Adapter pattern for the spec → production code** —
+      `spec/implementation.tsx` is reference documentation per its
+      header comment, not directly importable code (it has
+      placeholder string literals like `'__MAPBOX_PUBLIC_TOKEN__'`
+      and `'__STYLE_LIGHT_URL__'` that would crash at runtime).
+      Wrote a new file `src/map/PersonalMap.tsx` that follows the
+      same shape but: drops the placeholder side-effects, accepts
+      props for camera defaults, replaces the single SymbolLayer
+      pin block with the CircleLayer+SymbolLayer pair (per Phase 4
+      doc step 3), and inlines color tokens as TS constants instead
+      of importing tokens.json (so the Mapbox style expressions stay
+      literal — they get compiled once on style load and aren't
+      reactive). Used the existing pattern (already in
+      `src/types/database.ts` + `src/places/repo.ts`) of importing
+      types directly from `spec/data-shapes.ts` rather than copying.
+    - **Two D10 deviations taken; both surface as cross-phase
+      issues for Phase 7** — see new "D10 marker-shape deviations
+      deferred to Phase 7" entry under Cross-phase issues below
+      for the full reasoning + fix recipe. TL;DR: both depend on
+      sprite-pipeline work (rounded-square anchor backgrounds,
+      indigo-glyph variants for visited state) that Phase 2 didn't
+      deliver because the spec assumed it, but the spreet build
+      script in `sprites/build-sprites.sh` only generates 9
+      white-glyph-on-transparent sources.
+    - **`iconImage` mapping uses `match` on uppercase category** —
+      `SavedPlaceCategory` enum values are uppercase `CAFE`, `WORK`,
+      etc., but spreet sprite IDs are lowercase filenames (`cafe`,
+      `work`, etc.). Used a Mapbox `["match", ["get", "category"],
+      "CAFE", "cafe", ...]` style expression to bridge — keeps the
+      mapping in the renderer where Mapbox compiles it once on
+      style load, doesn't require touching `spec/data-shapes.ts`
+      (locked). Mapbox expressions don't have a native `lowercase`
+      operator so a 1:1 `match` is the canonical pattern.
+    - **`OnPressEvent` type not re-exported from `@rnmapbox/maps`
+      package root** — typed event handler args inline as
+      `OnPressEvent`-shaped objects (the type lives at
+      `node_modules/@rnmapbox/maps/lib/typescript/src/types/OnPressEvent.d.ts`
+      but isn't included in the native or web index re-exports).
+      Used `e.features[0]?.properties?.['id']` shape with
+      `noUncheckedIndexedAccess`-correct guards.
+    - **Property access via `properties?.['id']` not
+      `properties?.id`** — strict tsconfig + GeoJSON.Feature's
+      `properties: GeoJsonProperties` (= `{ [k: string]: any } |
+      null`) makes dotted access on string keys an `any` type leak
+      under `noPropertyAccessFromIndexSignature` style rules. Used
+      bracket access uniformly with a `typeof === 'string'` /
+      `typeof === 'number'` guard before invoking handlers.
+    - **Long-press wiring uses `MapView.queryRenderedFeaturesAtPoint`**
+      — `@rnmapbox/maps` `MapView.onLongPress` fires with the
+      screen-point payload, not a feature-id. Got the pin id by
+      calling `mapRef.current.queryRenderedFeaturesAtPoint([x, y],
+      undefined, ['saved-pins-icon', 'anchors-icon'])` and reading
+      the first feature's `properties.id`. Matches the commented
+      reference in `spec/implementation.tsx` § "Long-press hook".
+  - Cross-phase drift detected:
+    - D10 marker-shape spec assumed sprite atlas would have anchor
+      backgrounds + outlined-glyph variants; Phase 2 only built the
+      9 white-on-transparent glyphs. New cross-phase issue logged
+      below — fix lands in Phase 7 (which already owns "visited
+      state" + "pin interactions") via a sprite-pipeline expansion.
+    - Mapbox `MbxLogo` runtime warning fires at startup (3×) because
+      `spec/implementation.tsx` sets `logoEnabled={false}` with
+      attribution-only as the TOS-compliance path. The warning is
+      cosmetic on Android (Mapbox's free-tier TOS accepts text
+      attribution OR logo, not strictly both) but loud in logcat.
+      Re-evaluate at Phase 10 alongside App Store / TOS prep —
+      may need to flip `logoEnabled={true}` for the App Store
+      reviewer's first impression. Logged below.
+  - Recommended Phase 5+ doc tweaks:
+    - Phase 5 doc: when implementing the post-save UX (camera
+      flyTo new pin), use the `mapRef.current.flyTo([lng, lat],
+      durationMs)` imperative API on the existing `MapView` ref.
+      Don't unmount/remount `PersonalMap` to re-center.
+    - Phase 7 doc (existing): expand the "visited state + pin
+      interactions" task list to include the sprite-pipeline
+      additions captured in the new D10-deviations cross-phase
+      issue below.
+
 ## Pending phases
 
-- [ ] Phase 4: Map renderer integration (PersonalMap component + dark mode)
 - [ ] Phase 5: Save-flow MVP — VALIDATION GATE (share-ext + URL classifier + Kakao auto-resolve)
 - [ ] Phase 6: Onboarding + auth flow (2-step anchor, hint card)
 - [ ] Phase 7: Pin interactions + states (tap-to-expand, long-press menu, visited, color filter)
@@ -515,34 +851,83 @@ all Phase 10 artifacts). See Cross-phase issues for full rationale.
 
 ## Cross-phase issues / drift
 
-### First EAS iOS Build deferred to end of Phase 4
+### First EAS iOS Build — explicit gate BEFORE Phase 5 kickoff
 
 iOS verification cannot be done locally on Windows (no Xcode); the
 opening Phase 1 decision was to defer iOS verification to "first EAS
-Build" rather than borrow a Mac. Decision **2026-04-27**: actually
-trigger that first EAS iOS build at the **end of Phase 4 (Map renderer
-integration)**, not now.
+Build" rather than borrow a Mac. Decision history:
+- **2026-04-27** (Phase 1 close): defer to end of Phase 4
+- **2026-05-03** (Phase 4 close, this revision): the gate is **before
+  Phase 5 kickoff** — not "convenient", not "soon". A specific gate.
 
-**Why not at Phase 1 close:** the iOS code today is just the vanilla
-Expo template + `@rnmapbox/maps` native config — no app-specific iOS
-behavior. The first EAS iOS build is most diagnostic when actual
-Mapbox iOS bindings get exercised by `PersonalMap`, so any failure is
-unambiguously attributable.
+**Why a hard gate (not "when convenient"):**
 
-**To run when Phase 4 closes:**
+First iOS builds break in predictable ways: provisioning profile
+issues, code signing, bundle-ID conflicts, missing iOS-specific
+native config, Mapbox iOS pod resolution. The cost of finding
+those failures grows with how much surface has been built since
+the last known-iOS-good state.
+
+Phase 4 close is the strongest diagnostic frame this project will
+ever have: the iOS native config has been completely untouched
+since Phase 1 (vanilla Expo template + `@rnmapbox/maps` plugin),
+and Phase 4 is the first phase that exercises the Mapbox iOS
+runtime. If the EAS build breaks, the suspect set is
+`@rnmapbox/maps` iOS bindings + the Style JSON + the bundled
+sprite/glyph URLs — a small, well-contained list.
+
+If we wait until Phase 5/6/7, the suspect set widens by every
+phase: share-extension config (Phase 5 is iOS share-sheet
+heavy), auth provider native modules (Phase 6), gesture-handler
+(Phase 7). A break diagnosed at Phase 7 has 4 phases of
+candidate causes; a break diagnosed at Phase 4 has 1.
+
+The Apple Developer Program ($99/yr) is NOT required for this
+build — it's required for TestFlight at Phase 10. The simulator
+profile produces an unsigned `.app` that the build pipeline can
+either succeed or fail to produce, and that pass/fail is itself
+the verification.
+
+**Gate definition:** Phase 5 kickoff is BLOCKED on this build
+having been attempted at least once and any failures recorded
+in this entry. The build does NOT need to succeed to pass the
+gate; failures are signal too — the goal is to surface iOS
+issues now, not to ship to TestFlight. If the build fails, log
+the error here and proceed with Phase 5 (the failure isn't
+load-bearing for the save-flow validation; it's load-bearing
+for the eventual Phase 10 TestFlight).
+
+**Recipe (30-60 minutes, runs from Windows; EAS build executes
+on EAS's Mac infrastructure in the cloud):**
 
 ```bash
+# One-time prep — needs interactive login:
 pnpm add -D eas-cli
-pnpm exec eas login                 # free Expo account, one-time
+pnpm exec eas login                 # free Expo account; one-time
 pnpm exec eas init                  # links project to EAS
+
+# The actual build (10-30 min on EAS cloud Mac):
 pnpm exec eas build --platform ios --profile development --simulator
-# Simulator profile = no Apple Developer Program needed.
-# Output is a .app for iOS Simulator (Mac required to actually launch;
-# the build succeeding/failing is itself the verification we want here).
+# --simulator: unsigned .app for iOS Simulator (no Apple Dev needed)
+# --profile development: includes dev client for Metro hot reload
 ```
 
-Apple Developer Program ($99/yr) becomes required at **Phase 10** for
-TestFlight + App Store, NOT for this build.
+**What to capture afterward in this entry** (replacing this
+"recipe" subsection with the actual results):
+
+- Build URL from EAS dashboard
+- `BUILD SUCCESSFUL` (with .app artifact link) OR the failure
+  message + which step failed (`npm install`, `pod install`,
+  `xcodebuild`, etc.)
+- Any deprecation warnings from `xcodebuild` worth tracking for
+  Phase 10
+- Whether the `.app` actually launches in iOS Simulator (this
+  step requires a Mac; if no Mac available, the build-success
+  itself is the verification — log "launch verification
+  deferred" here)
+
+Apple Developer Program ($99/yr) becomes required at **Phase 10**
+for TestFlight + App Store, NOT for this build.
 
 ### `expo-system-ui` installed (resolved 2026-04-30, ahead of Phase 4)
 
@@ -757,6 +1142,476 @@ Phase 10 if the user count justifies it. v1 launch on free tier is
 fine if check-ins are weekly+; if the app is dormant pre-launch
 (e.g., between phases), manual unpause is the cost.
 
+### D11 spec ↔ mapbox-streets-v8 schema mismatch (Path A applied)
+
+The Phase 4 close manual visual check surfaced that the initial spec/
+style-{light,dark}.json was authored against OpenMapTiles schema
+conventions but deployed against `mapbox://mapbox.mapbox-streets-v8`.
+The two vector-tile schemas use different source-layer names and
+field conventions, so road / subway / park-label layers silently
+rendered nothing (the spec's expressions could not match v8's
+features). Path A spec patch applied 2026-05-03 (see spec/CHANGELOG.md
+entry of the same date for the line-by-line) to align with v8 schema.
+
+**Two D11 deviations result from Path A (both deferred to v1.5 /
+MapLibre + MapTiler migration):**
+
+1. **Subway lines display as single grey at z13+, no per-line color.**
+   D11 spec: 5 hub lines colored at z13, all 9 lines colored at z14
+   with transfer-station upsizing as Korean spatial-anchor cue. Reality
+   on v8: rail features tagged generically as `class=major_rail` with
+   no per-line `ref` metadata — Seoul Metro line 1/2/3/4/9 differentiation
+   is impossible from the data. Path A renders all rail as single grey
+   `#888888` (light) / `#A0A0A0` (dark) at z13+.
+
+2. **Subway stations rendered without transfer differentiation.**
+   D11 spec: transfer-station dots visibly larger + labels appearing
+   one zoom earlier than regular stations (Korean spatial-anchor
+   intent). Reality on v8: `transit_stop_label` source-layer lacks
+   the `transfer` field that the differentiation requires. Path A
+   collapses 4 station layers (regular dot / transfer dot / regular
+   label / transfer label) into 2 (dot / label), uniform sizing.
+
+**When each deviation first becomes user-visible (the deferral
+rationale):**
+
+- **Subway single grey**: subway is a background-context feature in
+  this product (see DESIGN.md wedge — "personal map for saved cafes,
+  not a transit app"). Phase 5 wedge validation tests save flow with
+  the founder's friend, not subway navigation. Phase 6 onboarding +
+  Phase 7 pin interactions also do not exercise subway. The cosmetic
+  degradation is visible from Phase 4 onward but doesn't gate any
+  user-facing test before v1 launch.
+- **Station no-transfer-differentiation**: same — Korean users notice
+  transfer stations as orientation cues but the wedge is "find my
+  saved cafe", not "navigate via transfer station." If v1 beta
+  feedback explicitly cites "지하철 환승역으로 길찾기 못 함" as a
+  blocker, pull resolution forward (see guardrail below).
+
+**Guardrail — when to pull resolution forward:**
+
+If wedge validation (Phase 5+) or beta feedback (Phase 10) surfaces
+the subway-context degradation as a friction point — example signals
+include "지도가 너무 비어있어요" / "환승역이 안 보여서 위치 감
+잡기 어려워요" / "친구한테 보낼 때 어느 역 근처라고 설명을
+못함" — pull MapLibre + MapTiler migration forward from post-PMF
+to whichever phase is next. Do NOT let "scheduled for v1.5" become
+a dogma when wedge-validation feedback contradicts the deferral
+assumption.
+
+**Resolution path (post-PMF / v1.5):**
+
+The actual resolution is the DESIGN.md D4 post-PMF migration plan:
+swap `@rnmapbox/maps` runtime for `@maplibre/maplibre-react-native`,
+swap composite source from `mapbox://mapbox.mapbox-streets-v8` to
+MapTiler's vector tiles (which use OpenMapTiles schema — exactly what
+the original spec was written for). The original spec's color match
+expressions, transfer-differentiation filters, and italic park labels
+all Just Work against MapTiler tiles without further patches.
+
+Trigger condition for migration: "v1 wedge validation passes (per
+DESIGN.md success criteria) AND subway-context degradation cited as
+friction point in user feedback." Do NOT trigger on "MapLibre is
+shinier" — the migration is non-trivial (2-3 working days + new
+licensing surface + new tile-quota management). Worth doing only
+when product-validation evidence justifies it.
+
+**What did NOT change (Path A scope):**
+
+- The 9-glyph sprite atlas, brand-indigo pin styling, anchor
+  treatment, cluster behavior, dark mode toggle, Korean labels via
+  Pretendard PBFs — all unaffected. Path A is purely base-map
+  alignment with v8 schema.
+- src/map/PersonalMap.tsx — no changes. The component consumes
+  styleJSON as opaque string; spec patches alone fix rendering.
+- spec/data-shapes.ts, spec/tokens.json, sprite SVGs — all
+  unchanged. Path A touches only the two style JSONs + spec/CHANGELOG.
+
+### D10 marker-shape deviations deferred to Phase 7
+
+Phase 4 took two visual deviations from the D10 marker spec because
+Phase 2's sprite pipeline only generated the 9 white-glyph-on-
+transparent atlas entries that `sprites/build-sprites.sh` enumerates
+— the spec's runtime-styling path assumed additional sprite variants
+that don't exist:
+
+1. **Anchor "rounded square" → circle in `brand_indigo_soft`.**
+   D10 locks anchors as rounded squares to mark "infrastructure vs
+   content" against saved circles. Mapbox's `CircleLayer` can only
+   render circles, so a rounded-square anchor needs a sprite atlas
+   entry per role (`home-bg`, `work-bg`, `school-bg`) with the
+   rounded-square background pre-composited. Phase 4 renders anchors
+   as larger circles in `brand_indigo_soft` (#6B68A8 light /
+   #8E8BD8 dark) — the lighter color carries the anchor-vs-saved
+   distinction in the meantime.
+
+2. **Visited "outlined indigo glyph" → "donut" (no glyph).**
+   D10 locks visited as filled→outlined: same glyph in indigo on
+   surface_base background instead of white-on-indigo. The current
+   sprite atlas is rasterized white PNGs (spreet built without
+   `--sdf`); Mapbox `iconColor` cannot tint a non-SDF sprite. So
+   visited pins render as a "donut" (surface_base fill + 2.0px
+   indigo stroke + the glyph hidden via the SymbolLayer's `filter`)
+   until the sprite pipeline produces the indigo variants.
+
+Both deviations are logged in the source as block comments at the
+top of `src/map/PersonalMap.tsx`.
+
+**When each deviation first becomes user-visible (the deferral
+rationale):**
+
+- **Anchor circle**: anchors are not rendered for any user until
+  Phase 6 (onboarding sets HOME / SCHOOL / WORK). Phase 5 uses a
+  hardcoded test user with no anchors per `phase-5-save-flow-validation.md`
+  — so the founder's-friend wedge validation does NOT see anchors.
+  Phase 6 is internal dev (no external user testing scheduled
+  before Phase 10 beta). Phase 7 ships the fix before Phase 10
+  external testing → safe.
+- **Visited "donut"**: the visited state has no toggle until
+  Phase 7 itself (the toggle ships AND the fix lands in the same
+  phase). Until then, no user can mark a place visited, so the
+  donut state is not reachable. Mock data with `visited: true`
+  in Phase 4's dev fixture is the only path to see it pre-Phase-7.
+
+If the visibility-timeline assumption breaks (e.g., Phase 6 ends
+up touching a real friend's account, or a Phase 5/6 demo gets
+scheduled with anchors visible), pull the fix forward to whichever
+phase becomes the first external-touch — do NOT let "scheduled for
+Phase 7" become a dogma when the visibility schedule shifts.
+
+**Sprite pipeline retrospective (why we landed here + Phase 7 prep):**
+
+Phase 2 generated 9 sprite atlas entries (one per category glyph)
+because that's what was sitting in `sprites/`. The spec assumed
+more variants existed (rounded-square anchor backgrounds,
+indigo-stroked outlined glyphs for visited) — they didn't, and
+Phase 2's verification gate was "9 sprite IDs in the manifest +
+PBFs upload OK", which was passable because the gate wasn't
+"every sprite the spec references at runtime is in the atlas."
+Phase 4 surfaced the gap when the runtime expressions reached
+for `cafe-outlined` / etc. and would have rendered blank. Phase 7
+fixes the underlying scope.
+
+Good news: both Phase 2 build scripts auto-discover. Adding new
+SVGs is a drop-in operation, NOT a pipeline modification:
+
+- `sprites/build-sprites.sh` calls `spreet ./sprites $OUT_DIR/sprite`
+  — spreet rasterizes every `*.svg` it finds in the directory.
+  Sprite IDs are filename without extension, lowercased.
+- `scripts/upload-assets.sh` uses `for f in "$BUILD_DIR"/sprite*.{json,png}`
+  + `find "$BUILD_DIR/glyphs" -type f -name '*.pbf'` — both
+  globs/finds are open, no hardcoded file lists.
+
+So Phase 7 (Option B variant — the simpler-now path) is literally:
+
+```bash
+# 1. Drop new SVGs into sprites/  (8 new files: 5 outlined + 3 anchor)
+# 2. Rebuild + reupload + cache-bust
+bash sprites/build-sprites.sh
+SPRITE_VERSION=v2 bash scripts/upload-assets.sh
+# 3. Edit spec/style-{light,dark}.json — change /sprites/v1/ → /sprites/v2/
+# 4. Edit src/map/PersonalMap.tsx per the option-B steps below
+```
+
+If a future phase needs 10 more icons (say a v2 "EVENT" or "BAR-CRAFT"
+category), the same drop-in flow applies. Pipeline does not need
+generalization — it's already general.
+
+**To resolve at Phase 7** (or earlier if the visibility schedule
+shifts per the timeline note above):
+
+Pick ONE of the two sprite-pipeline expansions:
+
+- **Option A: SDF sprites + runtime tinting.** Re-run `spreet
+  --sdf ./sprites ./build/sprite{,@2x,@3x}` and re-upload to
+  `/sprites/v1/sprite*`. SDF mode lets `iconColor` data-driven
+  expressions tint the glyph at runtime, so visited can use
+  `iconColor: ['case', ['get', 'visited'], '#2D2A6B', '#FFFFFF']`.
+  Cleaner long-term, slightly larger atlas (alpha-channel-only
+  but at higher resolution for SDF distance-field quality). Anchor
+  rounded-squares still need separate sprite entries; SDF doesn't
+  fix that one.
+
+- **Option B: Per-state sprite variants.** Add SVGs to
+  `sprites/`:
+  - `cafe-outlined.svg`, `restaurant-outlined.svg`, ... (5 files
+    × indigo-stroked outline of each glyph) for visited state.
+  - `home-anchor.svg`, `work-anchor.svg`, `school-anchor.svg`
+    (3 files × glyph-on-rounded-square composite) for anchor
+    backgrounds.
+  Re-run `bash sprites/build-sprites.sh` and `bash
+  scripts/upload-assets.sh`. Bump the sprite URL from
+  `/sprites/v1/` to `/sprites/v2/` as the cache-bust mechanism
+  (per Phase 2 versioning convention) and update both
+  `spec/style-{light,dark}.json` to point at v2. After upload,
+  flip `src/map/PersonalMap.tsx`:
+    - Anchors: replace `CircleLayer` background with a
+      `SymbolLayer` reading `iconImage = ["match", ["get",
+      "category"], "HOME", "home-anchor", "WORK", "work-anchor",
+      ...]`.
+    - Visited saved pins: drop the `CircleLayer` `case` on
+      `circleColor` + `circleStrokeWidth`, drop the SymbolLayer
+      `filter` excluding visited, switch the `iconImage` to
+      `["case", ["get", "visited"], ["concat", ["get",
+      "category"], "-outlined"], ["get", "category"]]`. (This
+      matches the original `spec/implementation.tsx` reference.)
+
+Either option is appropriate; SDF (A) is simpler-future for color
+filtering (D10 color-tag overlay) and option B is simpler-now for
+matching the locked spec exactly. Phase 7 can pick when it gets
+there.
+
+### Mapbox `MbxLogo` — LICENSE COMPLIANCE, not a cosmetic warning
+
+> **Do NOT read this as "warning to suppress."** This is a Mapbox
+> SDK license-compliance obligation. The Mapbox runtime is telling
+> us that our `logoEnabled={false}` setting may violate the SDK
+> Terms of Service we agreed to when we created the Mapbox account
+> (DESIGN.md § Distribution Plan). Treat this on the same shelf as
+> open-source license attribution — a legal obligation tied to our
+> right to use the SDK, not a console-noise issue.
+
+**The signal:** `spec/implementation.tsx` sets `logoEnabled={false}`
+with the comment "Mapbox logo handled per attribution rules". At
+runtime the Mapbox SDK emits this warning 3× per app boot:
+
+```
+W Mapbox  : [maps-android\MbxLogo]: The Mapbox logo wordmark
+            must remain enabled in accordance with our Terms
+            of Service. See https://www.mapbox.com/legal/tos
+            for more details.
+```
+
+**What we do NOT know yet:** whether `attributionEnabled={true}`
+(text "© Mapbox" bottom-right, currently shown) is, in Mapbox's
+own reading, a TOS-compliant alternative to the wordmark. The
+spec authors believed it was ("attribution rules" comment). The
+Mapbox SDK runtime explicitly disagrees ("must remain enabled").
+Until verified against the actual TOS text, **assume the SDK's
+runtime is the authoritative source** — that is the principle of
+deferring to the doc-stated tooling. Our v1 architecture depends
+on continued Mapbox SDK access (free tier under 50k MAU per
+Phase 0); a TOS audit by Mapbox that finds us out of compliance
+would invalidate that.
+
+**What this is NOT:** a cosmetic logcat-noise issue. The reason
+to flip `logoEnabled={true}` is not "make the warning stop", it
+is "honor the SDK license we agreed to."
+
+**Why it isn't already flipped:**
+- The spec is locked (CLAUDE.md § Locked decisions). The locked
+  decision is `logoEnabled={false}`. Per CLAUDE.md "If you find a
+  problem with anything in DESIGN.md, surface it as an open issue
+  in PROJECT_STATE.md and proceed with the locked version" — this
+  entry is the open-issue surfacing, and Phase 4 proceeds with
+  the locked spec.
+- The runtime warning is non-blocking: Mapbox renders the map
+  fine. There is no v1 dev-cycle failure mode that demands we
+  flip the flag right now. The compliance surface is at App Store
+  submission + any Mapbox account audit.
+
+**Resolution path (BEFORE Phase 10 / first TestFlight upload, NOT
+"during Phase 10 polish"):**
+
+1. **Read the actual Mapbox TOS** at https://www.mapbox.com/legal/tos
+   — specifically the "Map Attribution and Logo Display"
+   section if present, or the equivalent for the v10 Maps SDK
+   we use. Capture the relevant clause(s) verbatim into this entry.
+2. **Decide the user-flow**:
+   - **Default = flip to `logoEnabled={true}`** (one-line change in
+     `src/map/PersonalMap.tsx` MapView prop; Mapbox positions the
+     wordmark bottom-left automatically). This is the
+     conservative-default and removes the compliance question.
+   - **OR document a TOS clause that explicitly permits
+     attribution-only** — paste the clause text into this entry
+     plus a code-comment in `src/map/PersonalMap.tsx`. The clause
+     must be unambiguous; "we use attribution" is not an exception
+     unless TOS names attribution as an alternative.
+3. **Update spec/implementation.tsx + spec/CHANGELOG.md** if the
+   decision overturns the locked spec (requires user approval
+   per CLAUDE.md § Files requiring explicit user approval).
+
+**Owner:** assigned at Phase 10 kickoff (the latest reasonable
+gate). Earlier is fine — anyone reading this entry mid-build can
+take it on. Do not let it slide past first TestFlight upload.
+
+### `JAVA_HOME` setup gotcha for Windows + bash sessions
+
+Phase 1 noted the JDK lives at Android Studio's bundled JBR
+(`C:\Program Files\Android\Android Studio\jbr`). Android Studio
+sets `JAVA_HOME` for its own GUI but NOT for ad-hoc bash sessions
+(Git Bash / PowerShell new windows / CI runners). `pnpm android`
+calls Gradle which calls `java`, which fails with
+`ERROR: JAVA_HOME is not set` if the variable isn't exported.
+
+**Fix per session** (Bash / Git Bash):
+
+```bash
+export JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+**Or one-shot:**
+
+```bash
+JAVA_HOME='C:\Program Files\Android\Android Studio\jbr' \
+  PATH="C:\\Program Files\\Android\\Android Studio\\jbr\\bin:$PATH" \
+  pnpm android
+```
+
+**Or persist in `~/.bashrc`** (preferred for the user's primary
+machine — survives terminal restarts):
+
+```bash
+echo 'export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"' >> ~/.bashrc
+echo 'export PATH="$JAVA_HOME/bin:$PATH"' >> ~/.bashrc
+```
+
+PowerShell sessions are not affected — Android Studio sets
+`$env:JAVA_HOME` in the user environment which PowerShell honors,
+but not bash (which loads its own env from `~/.bash_profile` /
+`~/.bashrc`).
+
+This is a permanent property of the dev environment — left as a
+reference entry rather than a fix-someday item.
+
 ## Active blockers
 
-(empty — Phase 4 ready to start)
+### Phase 5 kickoff is blocked on two items
+
+These two items must be resolved before Phase 5 starts (each one is
+a hard gate per its own cross-phase entry above):
+
+1. **First EAS iOS Build attempted** — see "First EAS iOS Build —
+   explicit gate BEFORE Phase 5 kickoff". Pass = "attempted, results
+   recorded here", NOT "succeeded". Record the build URL + outcome
+   below when done.
+
+   - [ ] Run `pnpm exec eas build --platform ios --profile
+         development --simulator`
+   - Result (fill in):
+     - Date attempted: YYYY-MM-DD
+     - Build URL: ___
+     - Outcome: BUILD SUCCESSFUL / FAILED at <step>
+     - Notes: ___
+
+2. **Phase 4 RE-verification: 10-item visual check list (Path A
+   consumption check)** — Phase 4 closed initially with only
+   well-formedness verified; the consumption check (does the
+   rendered map match spec?) surfaced the v8 schema mismatch
+   (see "D11 spec ↔ mapbox-streets-v8 schema mismatch" cross-phase
+   issue). After Path A patch this re-verification is the
+   consumption check, applied per the new "Verification Principles"
+   section. Pass = "all 10 items recorded as PASS or known
+   deviation, with date + emulator snapshot."
+
+   **Pre-flight (CRITICAL — do BEFORE check #1):**
+
+   - [ ] App full kill + relaunch (NOT just Metro hot reload).
+         `@rnmapbox/maps` parses + caches `styleJSON` on prop
+         receive — fast refresh does not re-parse. Without
+         relaunch, the patched style JSON does not apply and the
+         re-verification will re-confirm the OLD (bugged) state,
+         creating a confusing "fix didn't work" loop.
+
+         How: long-press app icon on emulator → App info → Force
+         stop → tap app icon to relaunch. OR `adb shell am
+         force-stop com.gachi2026.mymap && adb shell am start -n
+         com.gachi2026.mymap/.MainActivity`.
+
+   **Visual checks (run #1-9 in light mode first, then #10 last):**
+
+   - [ ] **#1 Roads visible at z14+** — minor / collector / major /
+         highway tiers in cream tones (`#E8E6E0` / `#DDD9D0` /
+         `#C9C3B5`). Specifically: at zoom 14 in 성수동, expect
+         visible road network — at minimum primary/secondary roads.
+         Path A re-aligned `source-layer` to v8 `road`. PASS =
+         "roads visible at z14+, multiple tiers distinguishable."
+         FAIL = "0 roads" → `class` filter values may not match v8
+         enum.
+   - [ ] **#2 Subway lines visible at z13+ (binary)** — at least
+         one rail line drawn as single grey (`#888888` light).
+         Pan around 종로 / 강남 / 성수 area. PASS = "1+ rail line
+         visible." FAIL = "0 rail" → v8 may not tag KR subway as
+         `class=major_rail`; check via tile inspection.
+   - [ ] **#3 Park polygon + park label both render at z13+** —
+         polygon in sage `#D8DCC8`, label in Pretendard Regular
+         sage `#6B7561`. Test over 서울숲 (37.5446, 127.0376).
+         PASS = polygon visible AND label rendered in sage. FAIL
+         polygon-only = label PBF or font name issue (re-check
+         Phase 2 Pretendard Regular PBF). FAIL both = `place_label`
+         filter for park class wrong.
+   - [ ] **#4 Subway station dot at z14+ (binary, 4 branches)** —
+         pan over any major Seoul subway station area at z14+.
+         - PASS branch A: 1+ dot visible, dot count looks reasonable
+           (~10-50 in metropolitan view) → Path A's stop_type filter
+           works as intended, keep best-effort layer.
+         - FAIL branch B: 0 dots → v8 `transit_stop_label` is empty
+           for KR data → 진짜로 station 데이터 없음, 다음 patch 에
+           서 layer 삭제 정당화.
+         - FAIL branch C: dots but no Korean labels → Phase 2 PBF
+           regression (specifically check `name:ko` Hangul range
+           PBFs on R2 → re-upload if missing).
+         - FAIL branch D: too many dots (bus stops + everything
+           overlay → visual noise) → fallback `!has stop_type` is
+           too permissive → next patch tightens to
+           `stop_type=station` only (drop fallback). 1-line patch.
+   - [ ] **#5 Subway station label in Korean at z14+** — station
+         names render as 한국어 (성수역, 강남역 etc., not English
+         transliteration). Validates both v8 transit_stop_label
+         data and Phase 2 Pretendard PBF Korean range. Bonus
+         bisection: if #4 branch A AND #5 fails, the station data
+         is there but Pretendard Korean PBFs are missing → Phase 2
+         regression candidate.
+   - [ ] **#6 Cluster bubble at z12-13 with count** — pinch out to
+         z12-13 over 성수 mock-pin cluster area. Expect small
+         indigo circle with "8" (or similar) count text in white
+         Pretendard Medium. Independent of Path A (cluster is
+         runtime CircleLayer + SymbolLayer, not base map). PASS =
+         "indigo bubble + visible numeric count."
+   - [ ] **#7 Pin tap → console log `[pin tap] <id>`** — tap any
+         saved pin. Log appears in Metro terminal. Independent of
+         Path A.
+   - [ ] **#8 Cluster tap → console log `[cluster tap] <id>`** —
+         tap a cluster bubble (need z12-13 first). Independent of
+         Path A.
+   - [ ] **#9 Long-press over a pin → console log `[pin long-press]
+         <id>`** — hold finger on a saved pin for 1+ second.
+         Independent of Path A. (Note: long-press over empty area
+         should NOT fire; the `queryRenderedFeaturesAtPoint` filter
+         excludes non-pin layers.)
+
+   **Final check (run LAST in the cycle for failure isolation):**
+
+   - [ ] **#10 Dark mode toggle without app restart** ⭐ — pull
+         down notification shade twice → tap Dark theme tile (or
+         Settings → Display → Dark theme). Map should swap from
+         cream/indigo to charcoal/lighter-indigo without app
+         restart. Toggle back to light, should swap back. This is
+         the most fragile behavior (the `Appearance.addChangeListener`
+         in PersonalMap.tsx + double styleJSON parse on swap), so
+         it goes LAST — if checks 1-9 all pass and #10 fails, the
+         fault is isolated to the toggle path, not the Path A patch.
+
+   **Record results (one line each, OK / FAIL <note>):**
+
+   - Date checked: YYYY-MM-DD
+   - Pre-flight kill+relaunch: ___
+   - #1 Roads at z14+: ___
+   - #2 Rail at z13+ (binary): ___
+   - #3 Park polygon + label: ___
+   - #4 Station dot binary + branch chosen: ___
+   - #5 Korean station labels: ___
+   - #6 Cluster bubble + count: ___
+   - #7 Pin tap log: ___
+   - #8 Cluster tap log: ___
+   - #9 Long-press log: ___
+   - #10 Dark mode toggle: ___
+
+When all three gates (1, 2, 3) are resolved with results recorded,
+change this section back to `(empty — Phase N+1 ready to start)`
+and proceed.
+
+3. **iOS EAS build can run in parallel** with the visual
+   re-verification — they touch different infrastructure (EAS
+   cloud Mac vs local Android emulator). Either can complete first.

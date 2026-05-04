@@ -5,7 +5,8 @@
     "spec-version": "v1",
     "generated": "2026-04-26",
     "palette": "D9 cool warm-shifted base + deep indigo brand",
-    "compatibility": "Mapbox Style Spec v8 — MapLibre v3+ compatible (no model layers, no terrain)",
+    "syntax_compatibility": "Mapbox Style Spec v8 / MapLibre v3+ (no model layers, no terrain)",
+    "source_schema": "mapbox-streets-v8 (Mapbox-specific; NOT portable to OpenMapTiles without source-layer + filter rewrite — see PROJECT_STATE.md D11 deviation entry for migration scope)",
     "tokens-source": "tokens.json (light)",
     "_comment": "User-saved pins and anchors are rendered at runtime via @rnmapbox/maps ShapeSource (see implementation.tsx). They are NOT part of this style — this style defines the BASE MAP only. The runtime layers reference the same sprite + tokens for visual consistency."
   },
@@ -107,7 +108,7 @@
       "id": "road-minor",
       "type": "line",
       "source": "composite",
-      "source-layer": "transportation",
+      "source-layer": "road",
       "filter": ["in", ["get", "class"], ["literal", ["minor", "service", "track"]]],
       "minzoom": 14,
       "paint": {
@@ -125,7 +126,7 @@
       "id": "road-collector",
       "type": "line",
       "source": "composite",
-      "source-layer": "transportation",
+      "source-layer": "road",
       "filter": ["in", ["get", "class"], ["literal", ["secondary", "tertiary"]]],
       "minzoom": 13,
       "paint": {
@@ -143,7 +144,7 @@
       "id": "road-major",
       "type": "line",
       "source": "composite",
-      "source-layer": "transportation",
+      "source-layer": "road",
       "filter": ["in", ["get", "class"], ["literal", ["primary", "trunk"]]],
       "minzoom": 12,
       "paint": {
@@ -161,7 +162,7 @@
       "id": "road-highway",
       "type": "line",
       "source": "composite",
-      "source-layer": "transportation",
+      "source-layer": "road",
       "filter": ["in", ["get", "class"], ["literal", ["motorway"]]],
       "minzoom": 10,
       "paint": {
@@ -176,66 +177,18 @@
     },
 
     {
-      "id": "subway-line-hub",
+      "id": "subway-line",
       "type": "line",
       "source": "composite",
-      "source-layer": "transportation",
-      "filter": [
-        "all",
-        ["==", ["get", "class"], "transit"],
-        ["in", ["get", "ref"], ["literal", ["1", "2", "3", "4", "9"]]]
-      ],
+      "source-layer": "road",
+      "filter": ["==", ["get", "class"], "major_rail"],
       "minzoom": 13,
-      "maxzoom": 14,
       "paint": {
-        "line-color": [
-          "match",
-          ["get", "ref"],
-          "1", "#7595B5",
-          "2", "#7BAA88",
-          "3", "#D6A87A",
-          "4", "#7895C9",
-          "9", "#C9B27B",
-          "#888888"
-        ],
+        "line-color": "#888888",
         "line-width": [
           "interpolate", ["linear"], ["zoom"],
-          13, 1.2,
-          14, 1.8
-        ],
-        "line-opacity": 0.75
-      },
-      "layout": {
-        "line-cap": "round",
-        "line-join": "round"
-      }
-    },
-
-    {
-      "id": "subway-line-all",
-      "type": "line",
-      "source": "composite",
-      "source-layer": "transportation",
-      "filter": ["==", ["get", "class"], "transit"],
-      "minzoom": 14,
-      "paint": {
-        "line-color": [
-          "match",
-          ["get", "ref"],
-          "1", "#7595B5",
-          "2", "#7BAA88",
-          "3", "#D6A87A",
-          "4", "#7895C9",
-          "5", "#9E7BB5",
-          "6", "#B5896B",
-          "7", "#8FA47B",
-          "8", "#D67BA4",
-          "9", "#C9B27B",
-          "#7B95C9"
-        ],
-        "line-width": [
-          "interpolate", ["linear"], ["zoom"],
-          14, 1.5,
+          13, 1.0,
+          14, 1.8,
           16, 2.5,
           18, 4
         ],
@@ -265,18 +218,14 @@
     },
 
     {
-      "id": "subway-station-regular",
+      "id": "subway-station-dot",
       "type": "circle",
       "source": "composite",
       "source-layer": "transit_stop_label",
       "filter": [
-        "all",
-        ["==", ["get", "mode"], "rail"],
-        ["any",
-          ["==", ["get", "stop_type"], "station"],
-          ["==", ["get", "stop_type"], null]
-        ],
-        ["any", ["!", ["has", "transfer"]], ["==", ["get", "transfer"], false]]
+        "any",
+        ["==", ["get", "stop_type"], "station"],
+        ["!", ["has", "stop_type"]]
       ],
       "minzoom": 14,
       "paint": {
@@ -293,31 +242,6 @@
     },
 
     {
-      "id": "subway-station-transfer",
-      "type": "circle",
-      "source": "composite",
-      "source-layer": "transit_stop_label",
-      "filter": [
-        "all",
-        ["==", ["get", "mode"], "rail"],
-        ["==", ["get", "transfer"], true]
-      ],
-      "minzoom": 14,
-      "paint": {
-        "circle-radius": [
-          "interpolate", ["linear"], ["zoom"],
-          14, 4,
-          16, 6,
-          18, 9
-        ],
-        "circle-color": "#FFFFFF",
-        "circle-stroke-color": "#1A1A1A",
-        "circle-stroke-width": 1.5,
-        "circle-stroke-opacity": 0.6
-      }
-    },
-
-    {
       "id": "park-label",
       "type": "symbol",
       "source": "composite",
@@ -326,7 +250,7 @@
       "minzoom": 13,
       "layout": {
         "text-field": ["coalesce", ["get", "name:ko"], ["get", "name"]],
-        "text-font": ["Pretendard Italic"],
+        "text-font": ["Pretendard Regular"],
         "text-size": 10,
         "text-max-width": 7,
         "text-padding": 4,
@@ -367,54 +291,29 @@
     },
 
     {
-      "id": "subway-station-label-transfer",
+      "id": "subway-station-label",
       "type": "symbol",
       "source": "composite",
       "source-layer": "transit_stop_label",
       "filter": [
-        "all",
-        ["==", ["get", "mode"], "rail"],
-        ["==", ["get", "transfer"], true]
+        "any",
+        ["==", ["get", "stop_type"], "station"],
+        ["!", ["has", "stop_type"]]
       ],
       "minzoom": 14,
       "layout": {
         "text-field": ["coalesce", ["get", "name:ko"], ["get", "name"]],
-        "text-font": ["Pretendard Medium"],
+        "text-font": ["Pretendard Regular"],
         "text-size": 10,
         "text-anchor": "top",
         "text-offset": [0, 0.6],
-        "text-padding": 2
+        "text-padding": 4,
+        "text-letter-spacing": 0.0
       },
       "paint": {
         "text-color": "#1A1A1A",
         "text-halo-color": "#F5F4F0",
-        "text-halo-width": 1.5
-      }
-    },
-
-    {
-      "id": "subway-station-label-regular",
-      "type": "symbol",
-      "source": "composite",
-      "source-layer": "transit_stop_label",
-      "filter": [
-        "all",
-        ["==", ["get", "mode"], "rail"],
-        ["any", ["!", ["has", "transfer"]], ["==", ["get", "transfer"], false]]
-      ],
-      "minzoom": 15,
-      "layout": {
-        "text-field": ["coalesce", ["get", "name:ko"], ["get", "name"]],
-        "text-font": ["Pretendard Medium"],
-        "text-size": 10,
-        "text-anchor": "top",
-        "text-offset": [0, 0.6],
-        "text-padding": 2
-      },
-      "paint": {
-        "text-color": "#1A1A1A",
-        "text-halo-color": "#F5F4F0",
-        "text-halo-width": 1.5
+        "text-halo-width": 1.0
       }
     },
 
