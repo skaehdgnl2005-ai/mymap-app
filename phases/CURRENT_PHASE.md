@@ -544,6 +544,68 @@ Before involving the friend, verify YOU can do each path:
 
 If any path fails, fix before validation testing.
 
+## T-24h brand-lock gate
+
+The friend demo is the first time the product is presented to a real
+user under its identity. The app icon she sees and the share-sheet
+entry she taps in 0.5 sec both hang on the brand name. Showing her
+placeholder `mymap-app` contaminates the validation signal —
+hesitation at the share-sheet picker would not be cleanly attributable
+to *save-flow friction* (the thing we're validating) vs.
+*unfamiliar app name* (a known confounder).
+
+The brand-name decision is heavy enough to warrant its own
+/office-hours session and is intentionally **NOT made inside Phase 5
+implementation work** — the decision cascades into bundleIdentifier
+(Trigger 4, IRREVERSIBLE), custom domain (Trigger 4), and marketing
+surfaces, so it gets fully separated from save-flow code. This gate
+is the synchronization point between the parallel brand track and the
+implementation track.
+
+### Gate condition (all must be true 24 hours before scheduled demo)
+
+- [x] Brand name decision LOCKED in PROJECT_STATE.md → "Open
+      decisions" → "App Store branded display name" entry — moved
+      from PENDING to **LOCKED 2026-05-04: 자국** (English slug
+      `jaguk`); pivot from `자리` candidate after KIPRIS 9류/42류
+      block + App Store collision; full reasoning in /office-hours
+      session 2026-05-04
+- [x] `app.config.ts` `name` field updated 2026-05-04 to
+      `name: '자국'` (line 15); `ios.bundleIdentifier` +
+      `android.package` simultaneously updated to `com.jaguk.app`
+      (Trigger 4, IRREVERSIBLE at first TestFlight / Play Internal
+      upload — see PROJECT_STATE.md "Open decisions")
+- [ ] Share-extension display name applied + verified on real device
+      via the share sheet:
+  - iOS: share-sheet entry reads the brand name (not the bundle slug)
+  - Android: intent picker reads the brand name
+- [ ] Task #9 smoke-test re-run (all 5 paths) on real device with
+      rename applied — confirms no share-extension wiring regression
+      from the rename + that the new display name is what actually
+      surfaces in both platforms' picker
+
+### Failure mode
+
+If the gate is not met 24h before the demo, **reschedule the demo.**
+Do NOT run validation on a placeholder-named build. The cost of
+rescheduling (a few days) is far smaller than a contaminated
+validation result that could send the project into Phase 6+ on a
+wrong premise.
+
+If brand decision is genuinely stuck (>4 days past planned lock
+date), pause Phase 5 entirely and run a focused /office-hours
+session on naming exclusively. Prep checklist already lives in
+PROJECT_STATE.md → Open decisions → "App Store branded display name."
+
+### Out of scope for this gate (defer to later triggers)
+
+- iOS `bundleIdentifier` / Android `package` rename — IRREVERSIBLE,
+  belongs at Trigger 4 (Phase 10, before TestFlight). Stays as
+  placeholder `com.gachi2026.mymap` through the Phase 5 demo.
+- App Store / Play Store name reservation — Trigger 5
+- Custom domain (`<brand>.app`), app icon redesign, privacy
+  policy / ToS at brand domain — all post-validation polish
+
 ## The validation test (the actual gate)
 
 This is the most important task in the project. Do not skip, rush, or

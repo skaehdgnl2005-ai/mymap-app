@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-05-04 (Gate 2 closed — Phase 4 re-verified on Pixel_7 hardware GPU: 10-item visual check list run end-to-end, 7 PASS / 3 deviations attributed to documented dev-environment GPU limitation NOT to Path A or Phase 4 code, dark mode toggle ⭐ PASS both directions; new cross-phase entry "Android emulator GPU shader failure on Windows host" promoted from session annoyance to permanent issue per handoff guidance after second-session hit; Active Blockers cleared; **Phase 5 ready to start**)
+Last updated: 2026-05-04 (T-24h Phase 5 brand-lock gate progressed: brand `자국` + bundle ID `com.jaguk.app` LOCKED in `app.config.ts` per /office-hours session — pivot from `자리` candidate after KIPRIS 9류/42류 block + active App Store collision with `자리 - 나만의 주차 도우미` by Bongjin Lee; `자취` rejected as alternative due to KR lifestyle-app saturation; pre-lock gates verified — KIPRIS broad-search clean for `자국`/`jaguk` + KR App Store + Play Store clean + `jaguk.io` domain available; T-24h gate 2-of-4 sub-conditions met, real-device share-sheet verify + Task #9 smoke-test re-run pending `pnpm expo prebuild --clean` + device test; **Phase 5 implementation unblocked, friend-demo gated on remaining sub-conditions**)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -24,6 +24,16 @@ Active `phases/CURRENT_PHASE.md` → `phase-5-save-flow-validation.md`.
 it (first EAS iOS build + Phase 4 visual re-verification) closed
 2026-05-03 and 2026-05-04 respectively. See Active Blockers section
 for the brief resolution record + pointers to the detailed records.
+
+**New intra-phase gate (added 2026-05-04):** Phase 5 implementation
+tasks #1-9 are unblocked, but the friend-demo validation test
+within Phase 5 is gated on a new "T-24h brand-lock gate" — brand
+name must be locked + applied to `app.config.ts` line 15 + verified
+on real device share sheet 24 hours before the demo. Brand decision
+intentionally deferred to a separate /office-hours session per
+2026-05-04 decision (see Open decisions → "App Store branded
+display name" + `phases/phase-5-save-flow-validation.md` →
+"T-24h brand-lock gate" for the rationale + apply recipe).
 
 The Phase 4 entry below is annotated **VERIFICATION INVALIDATED
 2026-05-03** + **✅ Re-verified 2026-05-04** — original gate only
@@ -846,16 +856,60 @@ prevents the former, the exemption clause prevents the latter.
 
 ## Open decisions (not yet locked)
 
-- **App Store branded display name (pre-Phase 5):** the iOS share menu
-  and Android intent picker both display the app's localized name.
-  Pick before Phase 5 ships.
-- **iOS `bundleIdentifier` + Android `package` (Phase 10):** currently
-  set to PLACEHOLDER `com.gachi2026.mymap` in `app.config.ts`. Both
-  are **immutable** once any version is published to App Store /
-  Play Store. Final reverse-DNS identifier (likely tied to the final
-  product name — see "App Store branded display name" decision above)
-  must be locked before first TestFlight / Play Internal upload at
-  Phase 10. Changing it later requires a new app listing from scratch.
+- ~~App Store branded display name~~ — **LOCKED 2026-05-04: 자국**
+  (English slug `jaguk`; Korean noun, intended register: "trace /
+  mark" via 발자국 / 흔적 compound semantic). Modern Korean primary
+  read of `자국` standalone is `自國 / own country` — known parse
+  cost, addressed by Phase 10 positioning copy (first-run welcome +
+  App Store screenshots anchor the trace metaphor explicitly, e.g.
+  `"가본 곳, 가고 싶은 곳 — 자국이 되다"`), NOT by brand change.
+  On-device display name (icon, share-sheet, iOS
+  `CFBundleDisplayName`, Android `android:label`) = `자국` (brand-
+  only single string in `app.config.ts` `name:`). App Store Connect
+  / Play Console listing name configured separately at Phase 10 to
+  `자국 - 나만의 지도` per /office-hours D4 split-per-surface
+  decision: short-form on-device for share-sheet recognition +
+  truncation budget, long-form in store listing for organic-search
+  SEO. Save modal title = `자국에 저장하기`, save button = `저장`.
+
+  Pivot from prior candidate `자리` rejected 2026-05-04: KIPRIS
+  blocked (registered mark in 9류/42류 — see KIPRIS captures from
+  user) compounded by active App Store collision (`자리 - 나만의
+  주차 도우미` by Bongjin Lee, `com.bongjinlee.jari`, Navigation
+  category, using identical `자리 - 나만의 X` listing pattern).
+  `자취` briefly considered as alternative for cleaner trace-
+  metaphor semantic (자취를 남기다 = leave a trace, no `自國`
+  homophone), rejected after fact-finding showed heavy KR app-
+  naming saturation in 1인 가구 / 자취 lifestyle space (자취의정석,
+  브로콜리 - 자취 필수앱, full real-estate cluster: 직방·다방·
+  삼삼엠투·피터팬·원룸만들기·집품 etc).
+
+  Pre-lock gates verified 2026-05-04: KIPRIS 9·42·39·35·38류 broad
+  search (Korean `자국` + romanized `jaguk`) clean / KR App Store
+  + Play Store search clean for both `자국` and `jaguk` (no direct
+  competing brand; substring-only matches across 안국건강, 단국대,
+  따릉이, 초록발자국 etc., none in 9/42 territory) / `jaguk.io`
+  domain available (register at namecheap, ~$32/yr) + `jaguk.kr`
+  likely available (manual KISA whois verify pending, register at
+  gabia ~₩22k/yr). Pending operational items: (a) manual social
+  handle scan on Instagram / Threads / TikTok for `@jaguk` /
+  `@jagukapp` / `@자국`, lock `@jagukapp` as primary; (b) Phase 10
+  positioning-copy task to anchor trace metaphor against
+  `自國` parse cost. Full pressure-test reasoning across both
+  `자리` and `자국` candidates: /office-hours session 2026-05-04.
+
+- ~~iOS `bundleIdentifier` + Android `package`~~ — **LOCKED
+  2026-05-04: `com.jaguk.app`** (Trigger 4 — IRREVERSIBLE at first
+  TestFlight or Play Internal upload). Replaces placeholder
+  `com.gachi2026.mymap`. Brand-pivot reverse-DNS form, domain-
+  agnostic (works whether eventual primary domain is `jaguk.io`,
+  `jaguk.kr`, or fallback). Applied 2026-05-04 via single
+  `app.config.ts` edit — both `ios.bundleIdentifier` and
+  `android.package` set to `com.jaguk.app`. Native-config
+  regeneration via `pnpm expo prebuild --clean` is the next
+  required step before any iOS or Android build (regenerates
+  Info.plist `CFBundleIdentifier`, AndroidManifest.xml `package`,
+  Gradle `applicationId`).
 - ~~CDN provider (Phase 2)~~ — **LOCKED 2026-04-28: Cloudflare R2.**
   See "Phase 2 mid-phase decisions" in Current phase block above.
 - ~~Backend choice (Phase 3)~~ — **LOCKED 2026-04-30: Supabase.**

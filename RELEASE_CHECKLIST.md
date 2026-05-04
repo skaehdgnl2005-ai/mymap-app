@@ -37,11 +37,18 @@ context from the source docs and guide each step.
 
 ---
 
-## Trigger 3: Before Phase 5 starts (save-flow MVP)
+## Trigger 3: T-24h before Phase 5 friend demo (was "Before Phase 5 starts" until 2026-05-04)
+
+Timing shifted on 2026-05-04 — brand decision deferred from
+pre-Phase-5 to T-24h-before-friend-demo so it gets its own
+/office-hours session (cascades into Trigger 4 IRREVERSIBLE items).
+Phase 5 implementation tasks (#1-9 in `phases/phase-5-*.md`) proceed
+with placeholder `mymap-app` name; this gate fires only before the
+friend demo runs.
 
 | Item | Reversibility | Where |
 |---|---|---|
-| Lock branded **display name** (shows in iOS share menu + Android intent picker) | ✏️ can change before App Store submission, hard to change after | PROJECT_STATE.md → Open decisions; DESIGN.md → Open Q3 |
+| Lock branded **display name** (shows in iOS share menu + Android intent picker) + apply to `app.config.ts:15` `name` field + verify on real device | ✏️ can change before App Store submission, hard to change after | PROJECT_STATE.md → Open decisions → "App Store branded display name"; `phases/phase-5-save-flow-validation.md` → "T-24h brand-lock gate"; DESIGN.md → Open Q3 |
 
 ---
 

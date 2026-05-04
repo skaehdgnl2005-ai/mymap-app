@@ -12,7 +12,7 @@ if (process.env.MAPBOX_DOWNLOADS_TOKEN && !process.env.RNMAPBOX_MAPS_DOWNLOAD_TO
 }
 
 const config: ExpoConfig = {
-  name: 'mymap-app',
+  name: '자국',
   slug: 'mymap-app',
   version: '1.0.0',
   orientation: 'portrait',
@@ -26,10 +26,11 @@ const config: ExpoConfig = {
   },
   ios: {
     supportsTablet: true,
-    // PLACEHOLDER — must be finalized before TestFlight (Phase 10).
-    // Once an iOS build is uploaded to App Store Connect, this is
-    // immutable. Convention: reverse-DNS, lowercase.
-    bundleIdentifier: 'com.gachi2026.mymap',
+    // LOCKED 2026-05-04 — Trigger 4, IRREVERSIBLE at first TestFlight
+    // upload. Pivoted from placeholder `com.gachi2026.mymap` after
+    // /office-hours session locked brand `자국`. See PROJECT_STATE.md
+    // "Open decisions" → bundleIdentifier entry for full rationale.
+    bundleIdentifier: 'com.jaguk.app',
   },
   android: {
     adaptiveIcon: {
@@ -38,9 +39,11 @@ const config: ExpoConfig = {
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
-    // PLACEHOLDER — must be finalized before Play Store upload (Phase 10).
-    // Permanent on the Play Store side once any version is published.
-    package: 'com.gachi2026.mymap',
+    // LOCKED 2026-05-04 — Trigger 4, IRREVERSIBLE once any version
+    // is published to Play Store. Pivoted from placeholder
+    // `com.gachi2026.mymap` after /office-hours session locked
+    // brand `자국`. Mirrors `ios.bundleIdentifier` above.
+    package: 'com.jaguk.app',
   },
   web: {
     favicon: './assets/favicon.png',
