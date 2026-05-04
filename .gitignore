@@ -48,3 +48,7 @@ build-*.log
 # at github.com/orioncactus/pretendard. Rebuildable via build-sprites.sh
 # + Docker fontnik (see PROJECT_STATE.md → Phase 2 entry for SHA256s).
 /build/
+
+# Claude Code runtime artifacts (scheduled task locks, etc.) — never
+# user-meaningful, never reproducible across machines.
+/.claude/
