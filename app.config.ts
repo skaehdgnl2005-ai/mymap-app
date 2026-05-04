@@ -57,6 +57,15 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  extra: {
+    // EAS project link — written manually because `eas init` cannot
+    // automatically modify dynamic config (app.config.ts/js); it only
+    // auto-writes to static app.json. Created 2026-05-03 via
+    // `pnpm exec eas init` against @gachi2026/mymap-app.
+    eas: {
+      projectId: 'f12523a1-8c26-48a5-8aa9-e1e8e5e705f5',
+    },
+  },
 };
 
 export default config;

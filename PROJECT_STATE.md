@@ -907,9 +907,14 @@ pnpm exec eas login                 # free Expo account; one-time
 pnpm exec eas init                  # links project to EAS
 
 # The actual build (10-30 min on EAS cloud Mac):
-pnpm exec eas build --platform ios --profile development --simulator
-# --simulator: unsigned .app for iOS Simulator (no Apple Dev needed)
-# --profile development: includes dev client for Metro hot reload
+pnpm exec eas build --platform ios --profile development
+# --profile development: simulator build (per eas.json ios.simulator=true)
+#   + dev client for Metro hot reload. Unsigned .app — no Apple
+#   Developer Program required.
+# NOTE: eas-cli 18.x removed the standalone --simulator flag; the
+#   simulator setting moved into the eas.json profile. Older docs
+#   (and earlier versions of this recipe) showed `--simulator` —
+#   it now errors with "Nonexistent flag".
 ```
 
 **What to capture afterward in this entry** (replacing this
@@ -1482,18 +1487,47 @@ reference entry rather than a fix-someday item.
 These two items must be resolved before Phase 5 starts (each one is
 a hard gate per its own cross-phase entry above):
 
-1. **First EAS iOS Build attempted** — see "First EAS iOS Build —
-   explicit gate BEFORE Phase 5 kickoff". Pass = "attempted, results
-   recorded here", NOT "succeeded". Record the build URL + outcome
-   below when done.
+1. **First EAS iOS Build attempted** ✅ **PASSED 2026-05-03** — see
+   "First EAS iOS Build — explicit gate BEFORE Phase 5 kickoff". Gate
+   pass condition was "attempted, results recorded here" — exceeded
+   by an actual successful build (the strongest possible signal that
+   the iOS native pipeline works end-to-end).
 
-   - [ ] Run `pnpm exec eas build --platform ios --profile
-         development --simulator`
-   - Result (fill in):
-     - Date attempted: YYYY-MM-DD
-     - Build URL: ___
-     - Outcome: BUILD SUCCESSFUL / FAILED at <step>
-     - Notes: ___
+   - [x] Ran `pnpm dlx eas-cli build --platform ios --profile
+         development` (note: corrected from earlier docs that showed
+         the now-removed `--simulator` flag — eas-cli 18.x moved
+         simulator setting into eas.json profile)
+   - Result:
+     - Date: 2026-05-03
+     - Build URL: https://expo.dev/accounts/gachi2026/projects/mymap-app/builds/2440cf78-e790-4beb-8d0c-36eb608810f0
+     - Outcome: **BUILD SUCCESSFUL** — unsigned `.app` artifact
+       produced for iOS Simulator. Install QR + URL surfaced by EAS
+       at completion.
+     - Pre-flight fixes that landed in this round (separate from
+       the gate itself but required to reach the build):
+       - `app.config.ts`: added `extra.eas.projectId` manually
+         (eas init can't auto-write to dynamic config)
+       - `eas.json` created with `cli.version >=18.9.1` pin +
+         3 build profiles (development / preview / production)
+       - `expo doctor` blocking issues fixed: removed `eas-cli`
+         from devDependencies (use `pnpm dlx eas-cli` going
+         forward); bumped `expo` ~54.0.33 → ~54.0.34 and
+         `expo-linking` ~8.0.11 → ~8.0.12 to match SDK 54
+         recommended patches
+       - `Mapbox` SDK download succeeded without explicit
+         EAS secret registration (build did not require
+         `MAPBOX_DOWNLOADS_TOKEN` secret as previously
+         anticipated — likely because the rnmapbox plugin's
+         iOS path doesn't gate on that token like the Android
+         Maven path does)
+     - Launch verification: deferred — no Mac on hand to actually
+       install the `.app` to iOS Simulator. The build success
+       itself is the load-bearing signal we wanted (validates
+       that the iOS bindings + Style JSON + sprite/glyph URLs +
+       all native config produces a launchable artifact). Actual
+       launch verification rolls into the Phase 10 TestFlight
+       upload (signed build, real device) which is the next iOS
+       milestone after this gate.
 
 2. **Phase 4 RE-verification: 10-item visual check list (Path A
    consumption check)** — Phase 4 closed initially with only
