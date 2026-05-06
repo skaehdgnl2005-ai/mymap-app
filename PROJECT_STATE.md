@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-05-04 (T-24h Phase 5 brand-lock gate progressed: brand `자국` + bundle ID `com.jaguk.app` LOCKED in `app.config.ts` per /office-hours session — pivot from `자리` candidate after KIPRIS 9류/42류 block + active App Store collision with `자리 - 나만의 주차 도우미` by Bongjin Lee; `자취` rejected as alternative due to KR lifestyle-app saturation; pre-lock gates verified — KIPRIS broad-search clean for `자국`/`jaguk` + KR App Store + Play Store clean + `jaguk.io` domain available; T-24h gate 2-of-4 sub-conditions met, real-device share-sheet verify + Task #9 smoke-test re-run pending `pnpm expo prebuild --clean` + device test; **Phase 5 implementation unblocked, friend-demo gated on remaining sub-conditions**)
+Last updated: 2026-05-06 (Phase 5 implementation tasks 1-7 landed in `feat(phase-5): save flow implementation` — URL classifier, Kakao Local API client, SaveModal, App.tsx wiring with dev sign-in, expo-share-intent@~5.1.1 + plugin config, `pnpm expo prebuild --clean` regenerated android/ with `com.jaguk.app` package + `ACTION.SEND text/*` intent filter; typecheck + lint clean; tasks #8-9 (real-device build + 5 smoke paths) and friend-demo validation remain user-driven; T-24h gate sub-conditions 3-4 (real-device share-sheet 자국 verify + Task #9 re-run) plus a new sub-condition 5 (`.env` boot-time verification) still pending; **implementation closed, validation gate open**)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -34,6 +34,64 @@ intentionally deferred to a separate /office-hours session per
 2026-05-04 decision (see Open decisions → "App Store branded
 display name" + `phases/phase-5-save-flow-validation.md` →
 "T-24h brand-lock gate" for the rationale + apply recipe).
+
+**Phase 5 implementation status (mid-phase, 2026-05-06):** Tasks
+#1-7 (install share-intent, configure plugin + prebuild, URL
+classifier, Kakao client, SaveModal, App.tsx wiring, clipboard +
+button) all landed in commit `feat(phase-5): save flow
+implementation` — typecheck + lint clean, no native build attempted
+yet on either platform. Tasks #8-9 (real-device build + manual
+smoke-test of all 5 save paths) and the friend-demo validation
+gate remain user-driven. **Two gates conceptually separated** so
+archaeology stays clean: (1) implementation close = code
+artifacts shipped + smoke-tested, (2) validation gate = wedge
+thesis confirmed via 10-min friend-demo per pass criteria. A
+friend-demo failure invalidates the wedge (product reopen, not
+implementation reopen) — keep the gates distinct in any
+post-demo retro.
+
+Two mid-phase decisions worth recording while context is warm:
+
+- **Dev test-user authentication via `auth.uid()` flow (not a
+  hardcoded `user_id` literal).** Phase 5 doc allows hardcoding;
+  rejected because hardcoding bypasses RLS, which means every
+  query "works" in Phase 5 dev but the RLS validation surface
+  hasn't actually been exercised — Phase 6 inheritance would
+  surface latent RLS misconfigurations as query failures with
+  the producing context already cold. Cost: two `.env` vars
+  (`EXPO_PUBLIC_TEST_USER_EMAIL` / `_PASSWORD`) + one Supabase
+  dashboard test-user creation. Benefit: Phase 6 backend
+  integration starts with already-validated RLS, the same
+  `supabase.auth` flow Phase 6 will productionize, and zero
+  latent debt at the auth boundary. Implementation: tiny
+  `ensureDevSession()` helper at App.tsx boot, restores
+  persisted session first, falls back to test creds, falls
+  back to MOCK_PLACES on no-session for renderer-only dev.
+
+- **Phase doc sketches treated as guidance, not contract.**
+  Two reconciliations against locked sources surfaced during
+  Phase 5 implementation:
+  1. og-resolver field is `og_title` (Phase 3 actual), not
+     `data.title` (phase doc sketch). Fixed by reading the
+     actual Edge Function source at
+     `supabase/functions/og-resolver/index.ts` before writing
+     the bridge.
+  2. `KakaoPlaceResult` interface in phase doc has 12 fields
+     (full Kakao API response); `spec/data-shapes.ts` (locked)
+     defines a 7-field narrowed shape. Resolution: defined an
+     internal wider API-response type, narrowed to spec on
+     return — preserves the locked contract while consuming
+     the wider response.
+
+  Practice for future phases: when a phase doc references
+  upstream artifacts (locked specs, prior-phase exports,
+  Edge Functions, types), verify field names against the
+  locked source before treating doc snippets as code-ready.
+  This is a Phase-doc-specific variant of the Verification
+  Principles section's well-formedness vs. consumption
+  distinction — phase docs are well-formed (lint, render),
+  but their snippets need a consumption check against
+  current upstream reality before integration.
 
 The Phase 4 entry below is annotated **VERIFICATION INVALIDATED
 2026-05-03** + **✅ Re-verified 2026-05-04** — original gate only
@@ -1446,6 +1504,79 @@ Either option is appropriate; SDF (A) is simpler-future for color
 filtering (D10 color-tag overlay) and option B is simpler-now for
 matching the locked spec exactly. Phase 7 can pick when it gets
 there.
+
+### Android share-sheet host-filter granularity (Phase 5 deferral)
+
+Phase 5 task 2 wired share-extension intent filters via the
+expo-share-intent v5 plugin. The phase doc's example config
+included a per-host whitelist (`androidIntentFiltersData` keyed
+to `m.place.naver.com`, `place.map.kakao.com`, `www.instagram.com`,
+`www.threads.net`) so the picker entry would only surface for
+known-good URL hosts. The v5 plugin schema does not expose that
+field — `androidIntentFilters` accepts MIME types only
+(`"text/*" | "image/*" | "video/*" | "*/*"`). Phase 5 ships with
+`['text/*']` as the v1 baseline.
+
+**Current behavior:** the "자국" Android share-sheet entry surfaces
+on any text/plain share — including Notes app, plain SMS, news
+articles, etc. Per-host narrowing was the spec intent (D7
+implies it: "share-sheet primary for Naver/Kakao Place URLs and
+blog posts").
+
+**Visibility timeline:**
+- Friend-demo (Phase 5 validation): invisible — controlled test
+  on Instagram + Naver Place URLs, no exposure to other text
+  shares.
+- Phase 6-9 internal dev: invisible — solo founder controls
+  what gets shared.
+- v1 production launch (post-Phase 10): user-visible — general
+  users WILL share text from arbitrary apps and see the picker
+  entry. "왜 자국이 모든 텍스트에 떠?" is the canonical noise
+  signal.
+
+**Resolution paths (pick at the trigger condition below):**
+
+(a) **Wait for `expo-share-intent@^6` + Expo SDK 55 upgrade.**
+    The 6.x line peer-deps `expo: '^55'`. Expo 54 → 55 is a
+    natural project-wide upgrade; bundling the filter narrowing
+    with that upgrade keeps the change atomic. Lowest
+    maintenance cost. v6 plugin schema needs to be re-checked
+    at upgrade time — if it still doesn't expose host filters,
+    fall to (b) or (c).
+
+(b) **Eject from the plugin to native config edit.** Drop the
+    plugin entry, hand-edit `android/app/src/main/AndroidManifest.xml`
+    to add `<data android:scheme="https" android:host="m.place.naver.com"/>`
+    blocks per host. Costs the CNG (Continuous Native
+    Generation) workflow — `expo prebuild --clean` would wipe
+    the manual edit; either commit the entire `android/`
+    folder (Phase 1's gitignored decision is reversible) or
+    keep the plugin and write a custom config plugin per (c).
+
+(c) **Custom Expo config plugin.** Local plugin file in
+    `plugins/with-android-share-hosts.ts` that wraps
+    `withAndroidManifest` and injects host-specific
+    `<data>` elements into the existing `ACTION_SEND` intent
+    filter. ~30 lines of TypeScript; preserves CNG workflow;
+    survives `prebuild --clean`. Highest engineering cost,
+    most flexible, and the right answer if option (a) doesn't
+    expose host filtering after the upgrade.
+
+**Pull-forward trigger:** if Phase 6-9 internal testing
+surfaces "자국 popping up everywhere" as a friction point —
+e.g., during dogfooding of Phase 9 search-overlay or Phase 10
+beta — pull resolution forward to that phase. Otherwise
+naturally resolves alongside the SDK 55 upgrade. Do NOT
+treat "broader picker presence than ideal" as a v1 blocker:
+the friend-demo and v1 cohort are small enough that the
+picker noise stays inside the controlled-share band.
+
+**What did NOT change from spec:** the iOS share-extension
+side honored both phase-doc rules (`NSExtensionActivationSupportsWebURLWithMaxCount: 1`,
+`NSExtensionActivationSupportsText: true`); the v5 plugin's
+`iosActivationRules` field is a 1:1 pass-through to
+`NSExtensionActivationRule` so iOS picker scoping is correct
+out of the box. This deferral is Android-only.
 
 ### Mapbox `MbxLogo` — LICENSE COMPLIANCE, not a cosmetic warning
 

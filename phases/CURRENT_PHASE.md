@@ -583,6 +583,29 @@ implementation track.
       rename applied — confirms no share-extension wiring regression
       from the rename + that the new display name is what actually
       surfaces in both platforms' picker
+- [ ] `.env` boot-time verification: all three required vars present
+      and the app actually authenticates against Supabase before the
+      friend-demo. Required:
+  - `EXPO_PUBLIC_KAKAO_REST_API_KEY` (or Kakao search throws on first
+    keyword query — surfaces as "검색 실패" mid-demo with no
+    actionable fallback for the user)
+  - `EXPO_PUBLIC_TEST_USER_EMAIL`
+  - `EXPO_PUBLIC_TEST_USER_PASSWORD`
+  - corresponding test-user account exists in Supabase dashboard
+    with the same email + password (otherwise `auth.signInWithPassword`
+    fails silently → app shows the yellow "No Supabase session"
+    banner + falls back to `MOCK_PLACES`, which means the friend
+    saves into a fixture nobody can read post-demo)
+
+  Failure mode for this gate sub-condition is high-impact + late-
+  surfacing: the symptoms hide as "Kakao 검색이 안 돼요" /
+  "저장은 됐는데 다시 보면 사라져요", easily mistaken for save-flow
+  bugs during the 10-min observation. Preempt via a one-time boot
+  log: temporarily add `console.log('[boot]', { kakao: !!REST_KEY,
+  email: !!TEST_EMAIL, password: !!TEST_PASSWORD })` to App.tsx
+  near the existing token assertion; verify "all true" in Metro
+  before handing the phone to the friend; remove the log post-demo
+  (or roll into Phase 6's auth UI which subsumes the check).
 
 ### Failure mode
 
