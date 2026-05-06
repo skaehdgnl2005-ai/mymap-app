@@ -48,6 +48,10 @@ const config: ExpoConfig = {
   web: {
     favicon: './assets/favicon.png',
   },
+  // Deep-link scheme for redirects. Share-extension lifecycle on iOS uses
+  // `<scheme>://dataUrl` to bridge from the extension process back into
+  // the main app — see expo-share-intent docs.
+  scheme: 'jaguk',
   plugins: [
     [
       '@rnmapbox/maps',
@@ -57,6 +61,28 @@ const config: ExpoConfig = {
         // Note: do NOT pass RNMapboxMapsDownloadToken here — it's deprecated.
         // The plugin reads RNMAPBOX_MAPS_DOWNLOAD_TOKEN from process.env
         // (bridged from MAPBOX_DOWNLOADS_TOKEN at the top of this file).
+      },
+    ],
+    [
+      'expo-share-intent',
+      {
+        // Display name shown in iOS share-sheet picker. Brand-locked 2026-05-04
+        // — see PROJECT_STATE.md "Open decisions". Android picker reads the
+        // app's `name` (also `자국`) automatically from this same config.
+        iosShareExtensionName: '자국',
+        // Accept web URLs (Naver/Kakao Place links) and plain text (which
+        // covers Instagram/Threads/blog URLs that ship as text/plain).
+        iosActivationRules: {
+          NSExtensionActivationSupportsWebURLWithMaxCount: 1,
+          NSExtensionActivationSupportsText: true,
+        },
+        // v5 plugin schema accepts MIME types only — per-host filtering
+        // (the phase doc's `androidIntentFiltersData`) isn't exposed on
+        // this version. text/* covers all primary save-flow paths
+        // (Naver / Kakao / Instagram / Threads / blog URLs all share as
+        // text/plain). v1 trade-off: broader picker presence than ideal,
+        // narrowable later via custom androidManifestExtras patch.
+        androidIntentFilters: ['text/*'],
       },
     ],
   ],
