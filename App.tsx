@@ -33,6 +33,17 @@ Mapbox.setAccessToken(MAPBOX_TOKEN);
 const TEST_EMAIL = process.env.EXPO_PUBLIC_TEST_USER_EMAIL ?? '';
 const TEST_PASSWORD = process.env.EXPO_PUBLIC_TEST_USER_PASSWORD ?? '';
 
+// T-24h gate sub-condition 5: print env-var presence flags at boot so a
+// missing `.env` value gets caught BEFORE the friend-demo (otherwise the
+// symptom — "검색 실패" or no-session banner — looks like a save-flow bug
+// during the 10-min observation). Three ✓ in console = friend-demo ready.
+// Phase 6 auth UI will subsume this; remove after friend-demo close.
+console.log('[boot]', {
+  kakao: !!process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY,
+  email: !!TEST_EMAIL,
+  password: !!TEST_PASSWORD,
+});
+
 // Dev sign-in: try the existing persisted session first; otherwise sign in
 // with the .env-provided test credentials. If both fail, the map renders
 // from MOCK_PLACES so Phase 4 visual signal still works during this layer's

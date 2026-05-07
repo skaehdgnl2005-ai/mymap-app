@@ -55,6 +55,17 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
   // Lifecycle: when the modal becomes visible, kick off resolution per
   // the URL's strategy. Reset state when it closes so reopening with a
   // different URL doesn't show stale data.
+  //
+  // Dep is url.raw (a string), NOT the whole url object. The parent
+  // (App.tsx) recomputes the ClassifiedUrl via useMemo when share-intent
+  // ticks, so the object identity changes between renders even when the
+  // raw URL is unchanged — depending on the whole object would re-fire
+  // this effect mid-flow and silently clear any error/result state set
+  // by a previous run (e.g. a Kakao 403 error gets wiped before the user
+  // sees it). url.strategy is derived from url.raw, so url.raw is a
+  // sufficient key.
+  const urlRaw = url.raw;
+  const urlStrategy = url.strategy;
   useEffect(() => {
     if (!visible) {
       setPhase('idle');
@@ -64,9 +75,9 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
       setError(null);
       return;
     }
-    if (url.strategy === 'AUTO_RESOLVE') {
+    if (urlStrategy === 'AUTO_RESOLVE') {
       setPhase('resolving');
-      resolvePlaceFromUrl(url.raw)
+      resolvePlaceFromUrl(urlRaw)
         .then((r) => {
           if (r.error) {
             // Hard error (network etc.) — surface, but allow fallback.
@@ -89,7 +100,7 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
     } else {
       setPhase('manual');
     }
-  }, [visible, url]);
+  }, [visible, urlRaw, urlStrategy]);
 
   // Debounced Kakao keyword search for the manual path.
   useEffect(() => {
@@ -154,6 +165,18 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
 
         <SourceUrlChip url={url.raw} />
 
+        {/* Error banner placed BEFORE phase-conditional UI so it's always
+            visible. Previously rendered after <FlatList> in the manual
+            phase, which the FlatList's default flex behavior pushed
+            off-screen — the user could trigger a Kakao 403 / network
+            failure and see no error feedback. Banner placement makes
+            errors first-class regardless of save-flow phase. */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{error}</Text>
+          </View>
+        )}
+
         {phase === 'resolving' && (
           <View style={styles.center}>
             <ActivityIndicator />
@@ -180,8 +203,6 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
             onPick={handleSave}
           />
         )}
-
-        {error && <Text style={styles.error}>{error}</Text>}
       </View>
     </Modal>
   );
@@ -369,9 +390,17 @@ const styles = StyleSheet.create({
     color: '#9A9A95',
     marginTop: 8,
   },
-  error: {
-    color: '#C04545',
-    fontSize: 13,
-    marginTop: 12,
+  errorBanner: {
+    backgroundColor: '#FCE7E5',
+    borderLeftWidth: 3,
+    borderLeftColor: '#C04545',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  errorBannerText: {
+    color: '#7A2828',
+    fontSize: 12,
   },
 });
