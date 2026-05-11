@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-05-07 (D5 reopen + D5b APPROVED: POI provider Kakao → Naver Open API Local Search for v1, after Phase 5 Track A emulator verification surfaced `HTTP 403 App(map) disabled OPEN_MAP_AND_LOCAL service` — Kakao 사업자 등록 access constraint not viable at v1; Naver Open API verified empirically via real call before code change, mapx/mapy = WGS84 × 10⁷ integer, conversion `parseInt(x)/1e7` lands in expected Korean coordinates; D5 본문 unchanged, D5b is additive; Verification Principles Empirical Case #3 added for external-API integration generalization; code pivot in `src/naver/client.ts` + `src/save-flow/SaveModal.tsx` import swap + `src/kakao/client.ts` archived (preserved for Phase 10 migration if biz-reg becomes viable). Phase 5 implementation status unchanged otherwise: tasks #1-7 landed in feat commit + error-banner fix in d6fb1a2; tasks #8-9 (real-device build + 5 smoke paths) and friend-demo validation remain user-driven; T-24h gate sub-conditions 3-4 + 5 (`.env` boot-time verification including new NAVER_* vars) still pending)
+Last updated: 2026-05-11 (Phase 5 Track A mid-execution cross-phase issue: "Claude Code Read tool image dimension limit (2000px) blocks raw `adb screencap` PNGs" added to Cross-phase issues / drift section. Discovered mid-Step-7d when Naver keyword-search visual verification hit the Read limit on a 1080×2400 Pixel_7 capture; promoted to permanent cross-phase entry because every phase from Phase 5 onward exercises the same screencap→pull→Read pipeline for visual checks against locked spec. Mitigation recipe documented for both Windows host — PowerShell `System.Drawing` resize, no install needed — and Unix host with `magick`. Width=900 resize required for Pixel_7 portrait captures since width=1600 still yields >2000px on the long edge. No code or spec changes; PROJECT_STATE.md only.)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -1849,6 +1849,69 @@ but not bash (which loads its own env from `~/.bash_profile` /
 
 This is a permanent property of the dev environment — left as a
 reference entry rather than a fix-someday item.
+
+### Claude Code Read tool image dimension limit (2000px) blocks raw `adb screencap` PNGs
+
+**Symptom:** `adb shell screencap -p` on the Pixel_7 emulator produces
+a 1080×2400 PNG (portrait full-device). The Read tool rejects images
+whose longest edge exceeds 2000px, so the screenshot cannot be inspected
+without an intermediate resize step. Hit mid-Phase-5 Step 7d when the
+Naver keyword-search verification needed visual confirmation of search
+results — Read returned the dimension-limit error and verification
+stalled.
+
+**Why this is permanent, not a one-off:** every phase from Phase 5
+onward exercises visual verification of UI surfaces against the locked
+spec (save modal layout, pin interactions, onboarding flow, popover
+geometry, search overlay). All of those flow through the same
+`adb shell screencap` → `adb pull` → Read pipeline. Without a resize
+step in the loop, every visual check on this host re-hits the same
+wall and burns time re-discovering the limit. The cost of documenting
+the workaround once is far smaller than the cost of three more phases
+each independently rediscovering it.
+
+**Mitigation recipe (Windows host, no magick):** PowerShell's built-in
+`System.Drawing` does the resize without any install. The full
+capture → pull → resize pipeline as a one-liner:
+
+```bash
+# Bash invocation from the dev shell (Git Bash on Windows):
+adb shell screencap -p /sdcard/screen.png \
+  && adb pull /sdcard/screen.png /tmp/screen-raw.png \
+  && powershell -NoProfile -Command "Add-Type -AssemblyName System.Drawing; \$img=[System.Drawing.Image]::FromFile('C:\\path\\to\\screen-raw.png'); \$w=1600; \$h=[int](\$img.Height*(\$w/\$img.Width)); \$bmp=New-Object System.Drawing.Bitmap \$w,\$h; \$g=[System.Drawing.Graphics]::FromImage(\$bmp); \$g.DrawImage(\$img,0,0,\$w,\$h); \$bmp.Save('C:\\dev\\mymap-app\\build\\<name>.png',[System.Drawing.Imaging.ImageFormat]::Png); \$g.Dispose(); \$bmp.Dispose(); \$img.Dispose()"
+```
+
+For a 1080×2400 source, resize-to-width 1600 yields 1600×3555 — STILL
+over 2000px on the long edge. Two paths:
+
+- **Resize to width 900** (`$w=900` in the PS one-liner) → 900×2000.
+  Right at the limit; safe for portrait-orientation Pixel_7 captures.
+- **Crop to a region of interest first**, then resize. `adb shell
+  screencap -p` doesn't take a rect, but `adb exec-out screencap` +
+  ImageMagick-style crop in PS is feasible. Use this for popover /
+  modal verification where the surface only occupies the upper or
+  lower half.
+
+**Mitigation recipe (Unix host, with magick):** drop in
+`magick /tmp/screen-raw.png -resize 1600x build/<name>.png` in place
+of the PowerShell block. Width 1600 on the long edge fits under 2000
+for landscape captures, but the Pixel_7 portrait default still needs
+the 900-width tighter resize per above.
+
+**When this might stop being a permanent annoyance:**
+
+- Claude Code Read tool raises its dimension limit (no signal it will)
+- We move primary visual verification to real devices, which can use
+  smaller screencap output if rotated landscape; but real-device
+  testing has its own gates (USB debug + the Phase 5 Track B EAS iOS
+  validation) that don't make this the default flow yet
+- We switch to taking screenshots via in-app code (RN
+  `react-native-view-shot` + bundled at lower native resolution).
+  Heavier; only worth it if visual-verification velocity becomes a
+  bottleneck across multiple phases.
+
+**Owner:** anyone doing visual verification on this host. The recipe
+lives here so the next phase session doesn't re-derive it.
 
 ## Active blockers
 
