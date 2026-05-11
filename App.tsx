@@ -36,10 +36,14 @@ const TEST_PASSWORD = process.env.EXPO_PUBLIC_TEST_USER_PASSWORD ?? '';
 // T-24h gate sub-condition 5: print env-var presence flags at boot so a
 // missing `.env` value gets caught BEFORE the friend-demo (otherwise the
 // symptom — "검색 실패" or no-session banner — looks like a save-flow bug
-// during the 10-min observation). Three ✓ in console = friend-demo ready.
+// during the 10-min observation). All ✓ in console = friend-demo ready.
 // Phase 6 auth UI will subsume this; remove after friend-demo close.
+//
+// Naver replaces Kakao as POI provider at v1 per DESIGN.md D5b (사업자
+// 등록 access constraint). The `naver` flag is true only when BOTH
+// CLIENT_ID and CLIENT_SECRET are set; either alone is non-functional.
 console.log('[boot]', {
-  kakao: !!process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY,
+  naver: !!process.env.EXPO_PUBLIC_NAVER_CLIENT_ID && !!process.env.EXPO_PUBLIC_NAVER_CLIENT_SECRET,
   email: !!TEST_EMAIL,
   password: !!TEST_PASSWORD,
 });

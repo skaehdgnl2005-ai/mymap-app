@@ -1,3 +1,44 @@
+// ============================================================================
+// ARCHIVED 2026-05-07 per DESIGN.md D5b. Kept in repo, not deleted.
+// ============================================================================
+//
+// This client is the intended PRODUCTION POI provider per D5 (the
+// original locked decision). It is currently NOT IMPORTED ANYWHERE —
+// `src/save-flow/SaveModal.tsx` imports `src/naver/client.ts` instead.
+//
+// Why archived (not deleted): D5b is a transitional fallback forced by
+// the Kakao Developer Console's 사업자 등록 (business registration)
+// requirement to activate the 카카오맵 product. The founder cannot
+// obtain biz-reg at v1. When biz-reg becomes viable (or someone with
+// biz-reg onboards as the Kakao app admin), this file is the migration
+// target back to D5:
+//
+//   1. Activate 카카오맵 product in Kakao Developer Console for the app.
+//   2. Set EXPO_PUBLIC_KAKAO_REST_API_KEY in .env (key is already
+//      issued; just needs the service to be turned on Kakao-side).
+//   3. In src/save-flow/SaveModal.tsx, swap the import:
+//        from '../naver/client'  →  from '../kakao/client'
+//      and the function call:
+//        naverSearchByKeyword → kakaoSearchByKeyword
+//   4. Swap the attribution string back: "Powered by Naver" →
+//      "Powered by Kakao".
+//   5. Remove EXPO_PUBLIC_NAVER_CLIENT_ID/_SECRET from .env (optional —
+//      harmless to leave).
+//   6. Re-run smoke tests; the kakao client is otherwise unchanged
+//      from when it was the active provider.
+//
+// While archived, this module is parsed by tsc (included by
+// tsconfig.json) but never imported at runtime, so the import-time
+// `console.warn` about missing REST_KEY never fires.
+//
+// Below this archive header, the original Phase 5 implementation
+// comment + code is preserved verbatim — DO NOT MODIFY without
+// re-evaluating D5b migration path.
+//
+// ============================================================================
+// Original Phase 5 implementation comment:
+// ============================================================================
+//
 // Kakao Local API client (Phase 5).
 //
 // Two endpoints used in v1:

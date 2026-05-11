@@ -31,7 +31,13 @@ import {
 
 import type { KakaoPlaceResult, SavedPlace } from '../../spec/data-shapes';
 import { inferCategoryFromKakao } from '../../spec/data-shapes';
-import { kakaoSearchByKeyword, resolvePlaceFromUrl } from '../kakao/client';
+// Provider client swap per DESIGN.md D5b (Kakao Local API blocked by
+// 사업자 등록 access constraint at v1; Naver Open API used as v1
+// fallback). When biz-reg becomes viable, swap this line back to
+// '../kakao/client' (kakao client preserved in repo for that path)
+// and revert function calls below: naverSearchByKeyword →
+// kakaoSearchByKeyword.
+import { naverSearchByKeyword, resolvePlaceFromUrl } from '../naver/client';
 import { savePlace, type NewSavedPlace } from '../places/repo';
 import type { ClassifiedUrl } from './url-classifier';
 
@@ -110,7 +116,7 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
       return;
     }
     const handle = setTimeout(() => {
-      kakaoSearchByKeyword(searchQuery).then((r) => {
+      naverSearchByKeyword(searchQuery).then((r) => {
         if (r.error) {
           setError(r.error.message);
           setResults([]);
@@ -278,7 +284,7 @@ const ManualSearchView: React.FC<ManualSearchProps> = ({
         ListEmptyComponent={empty ? null : <Text style={styles.muted}>검색 결과가 없습니다.</Text>}
         ListFooterComponent={
           // Kakao TOS requires attribution when using their API output.
-          <Text style={styles.attribution}>Powered by Kakao</Text>
+          <Text style={styles.attribution}>Powered by Naver</Text>
         }
       />
     </>
