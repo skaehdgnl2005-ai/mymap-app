@@ -174,7 +174,14 @@ export async function naverSearchByKeyword(
   // - roadAddress empty string → null, matching the kakao client's
   //   coercion for Phase 8 popover branch-cleanly behavior.
   const docs: KakaoPlaceResult[] = [];
+  // Naver can return multiple results at the same address (single building
+  // hosting multiple businesses) → naive `naver:<address>` synthetic id
+  // collided in SaveModal's FlatList keyExtractor. Suffix with response
+  // index for guaranteed uniqueness within a single search call. SavedPlace.id
+  // is still our Supabase uuid; this id is FlatList-key-only.
+  let idx = 0;
   for (const item of json.items) {
+    const i = idx++;
     const lngNum = parseInt(item.mapx, 10) / 1e7;
     const latNum = parseInt(item.mapy, 10) / 1e7;
     if (!Number.isFinite(lngNum) || !Number.isFinite(latNum) || !inKorea(lngNum, latNum)) {
@@ -185,7 +192,7 @@ export async function naverSearchByKeyword(
     }
     const name = stripBoldTags(item.title);
     docs.push({
-      id: `naver:${item.address || name}`,
+      id: `naver:${i}:${item.address || name}`,
       place_name: name,
       category_name: item.category,
       address_name: item.address,
