@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-05-06 (Phase 5 implementation tasks 1-7 landed in `feat(phase-5): save flow implementation` — URL classifier, Kakao Local API client, SaveModal, App.tsx wiring with dev sign-in, expo-share-intent@~5.1.1 + plugin config, `pnpm expo prebuild --clean` regenerated android/ with `com.jaguk.app` package + `ACTION.SEND text/*` intent filter; typecheck + lint clean; tasks #8-9 (real-device build + 5 smoke paths) and friend-demo validation remain user-driven; T-24h gate sub-conditions 3-4 (real-device share-sheet 자국 verify + Task #9 re-run) plus a new sub-condition 5 (`.env` boot-time verification) still pending; **implementation closed, validation gate open**)
+Last updated: 2026-05-07 (D5 reopen + D5b APPROVED: POI provider Kakao → Naver Open API Local Search for v1, after Phase 5 Track A emulator verification surfaced `HTTP 403 App(map) disabled OPEN_MAP_AND_LOCAL service` — Kakao 사업자 등록 access constraint not viable at v1; Naver Open API verified empirically via real call before code change, mapx/mapy = WGS84 × 10⁷ integer, conversion `parseInt(x)/1e7` lands in expected Korean coordinates; D5 본문 unchanged, D5b is additive; Verification Principles Empirical Case #3 added for external-API integration generalization; code pivot in `src/naver/client.ts` + `src/save-flow/SaveModal.tsx` import swap + `src/kakao/client.ts` archived (preserved for Phase 10 migration if biz-reg becomes viable). Phase 5 implementation status unchanged otherwise: tasks #1-7 landed in feat commit + error-banner fix in d6fb1a2; tasks #8-9 (real-device build + 5 smoke paths) and friend-demo validation remain user-driven; T-24h gate sub-conditions 3-4 + 5 (`.env` boot-time verification including new NAVER_* vars) still pending)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -150,9 +150,9 @@ silently fails — that is the failure mode this principle exists to catch.
 
 ### Empirical evidence (the lessons that produced this principle)
 
-This principle is not abstract. Two cases in this project's history both
-passed well-formedness gates and silently failed consumption checks; both
-required reopening a closed phase:
+This principle is not abstract. Three cases in this project's history all
+passed well-formedness gates and silently failed consumption checks; each
+required reopening a closed phase or invalidating a locked-spec assumption:
 
 - **Phase 2 (sprite atlas)** — Verification gate was "9 sprite IDs in the
   manifest + 768 PBFs upload OK + 11/11 sample URLs return 200." All passed.
@@ -175,6 +175,47 @@ required reopening a closed phase:
   in the Phase 4 close visual check. Resolution: Path A spec patch +
   D11 deviation entry + Phase 4 reopen.
 
+- **Phase 5 (POI provider — Naver Open API Local Search)** — When D5
+  was reopened as D5b (Kakao biz-reg block), the Naver schema had to
+  be re-verified from scratch. Two contradictory authoritative-looking
+  sources surfaced: (a) official Naver doc TEXT said "mapx, mapy: WGS84
+  좌표계 기준" but the SAMPLE in the same doc showed 2016-era integer
+  values (`<mapx>311277</mapx>`) that are clearly NOT WGS84 (Korean
+  longitudes are 126–129, not 311277); (b) one community-blog crawler
+  search summary asserted "as of November 17, 2024 — KATECH." A second
+  community blog with a Postman screenshot + visual confirmation on
+  Naver Map showed coordinates that decoded via `/1e7` to actual Korean
+  locations. Resolution: trust empirical evidence (run the actual API
+  call against test credentials, observe real response field types and
+  numeric ranges) over both stale doc samples and contradictory
+  community claims. Verified 2026-05-07: `mapx=1270581051 → 127.0581051`
+  for "어니언 성수" lands in actual 성수동 — format is WGS84 × 10⁷
+  integer.
+
+  Lesson generalized to **external-API integration** (not just internal
+  phase artifacts): when implementing a client against a new external
+  API, never trust documentation alone, even from the API vendor.
+  Run the call, capture the real response, verify field types and
+  numeric ranges match the assumed contract, THEN write the production
+  client. The pre-integration verification gate is a 4-step protocol:
+
+  1. Obtain test credentials.
+  2. Make one real API call with a query whose expected response is
+     well-known to you (e.g. a coordinate query for a place you can
+     locate manually on a real map).
+  3. Print the full response. Confirm: field names match docs, field
+     types match docs, numeric values are in the expected ranges,
+     encoding is what you expect.
+  4. ONLY THEN write the typed client + production code.
+
+  This is the well-formedness vs. consumption distinction applied to
+  external APIs: doc text passes well-formedness (renders, looks
+  comprehensive, examples included); the consumption check is "did
+  the API actually return what the doc says, *today*?" Skipping the
+  empirical step means production code is gambling on docs that may
+  be stale (2016 samples), contradictory (text vs. sample within
+  the same doc), or wrong (community summaries).
+
 ### How to apply (mandatory for all future phase verification gates)
 
 For **visual artifacts** (Style JSONs, sprites, UI components):
@@ -196,6 +237,20 @@ For **integration artifacts** (Style JSONs against vector tile sources,
 config bridging environments): consumption check = render or invoke
 the full pipeline and verify the output matches spec, NOT just
 "the integrating call succeeded with no exception."
+
+For **external-API integration** (clients against third-party REST APIs
+like Kakao Local, Naver Open API, Mapbox, etc.): consumption check =
+the 4-step pre-integration protocol described in Empirical evidence
+Case #3 above — obtain credentials, run one real query whose expected
+response you can verify against ground truth (a coordinate query for a
+place you can locate on a real map; a search query for a result set
+you know is non-empty), print and inspect the full response, confirm
+field names + types + numeric ranges + encoding match the assumed
+contract. ONLY THEN write the typed client. This is independent of
+how authoritative the API docs look — vendor docs may have stale
+samples (Naver doc has a 2016 KATECH sample alongside a 2024+ WGS84
+text description). Treat "fetched the docs" as well-formedness, not
+consumption.
 
 ### When to write the consumption check
 
@@ -987,6 +1042,28 @@ prevents the former, the exemption clause prevents the latter.
   `supabase.auth.linkIdentity()` to merge any email-account collisions.
   Migration cohort at v1.5 is small (success criteria target: 30 users
   by week 4), so account-linking UX cost is bounded.
+
+- ~~POI provider (Phase 5 reopen of D5)~~ — **REOPENED 2026-05-07,
+  D5b APPROVED 2026-05-07: Naver Open API Local Search for v1
+  dev/friend-demo/initial cohort; Kakao Local API stays as the
+  Phase 10 production target if 사업자 등록 becomes viable.** D5
+  본문 unchanged; D5b is an additive amendment (see DESIGN.md
+  D5b for full rationale + migration path back to D5). Discovered
+  during Phase 5 Track A emulator verification when Kakao Local
+  API returned `HTTP 403 App(map) disabled OPEN_MAP_AND_LOCAL
+  service` — Kakao Developer Console requires 사업자 등록증 to
+  activate the 카카오맵 product, which the founder cannot
+  obtain at v1. Naver Open API has no 사업자 등록 requirement
+  (휴대폰 인증만), 25k calls/day free tier, returns coordinates
+  in WGS84 × 10⁷ integer format (empirically verified via real
+  query against test credentials before client code was written
+  — see Verification Principles Empirical Case #3). Schema
+  comparison: 0 critical losses for v1, minor losses (no stable
+  place_id, no phone, 15→5 max results) all defer cleanly.
+  Phase 10 evaluation gate re-resolves based on biz-reg
+  availability at that time (3 branches: Kakao migrate /
+  Naver continue / architectural pivot to OSM hybrid or
+  drop-pin).
 
 ## Cross-phase issues / drift
 

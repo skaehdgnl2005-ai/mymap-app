@@ -144,6 +144,128 @@ quota: 100k req/day pooled vs Naver's 25k/25k/25k split. Escape hatch:
 Naver upgrade via NCP commercial license at v2 if POI freshness gap
 materializes.
 
+### D5b — POI provider re-resolution (v1 access constraint)
+
+**Status:** ADDITIVE to D5 (D5 본문 unchanged). D5 stays correct as
+the intended production target; D5b is the v1 transitional fallback
+forced by an access constraint discovered during Phase 5.
+
+**Decision:** v1 development + friend-demo + initial cohort runs on
+**Naver Open API Local Search** (`developers.naver.com`,
+`/v1/search/local.json`), NOT Kakao Local API.
+
+**Trigger:** Kakao Developer Console requires 사업자 등록
+(business registration) to activate the 카카오맵 product on a
+developer app. The founder is not in a position to register a
+business at v1. This is a hard access constraint, not a technical
+preference. Discovered 2026-05-07 during Phase 5 Track A emulator
+verification (HTTP 403 `App(map) disabled OPEN_MAP_AND_LOCAL
+service`).
+
+**What changed (vs D5):**
+
+- POI provider for keyword search + place resolution: Kakao → Naver
+- Authentication: `Authorization: KakaoAK <key>` → `X-Naver-Client-Id`
+  + `X-Naver-Client-Secret` headers
+- Daily quota: 100k Kakao → 25k Naver (still well within v1 cohort
+  per success criteria target of 30 users by week 4)
+- Result coordinates: Kakao decimal-string WGS84 → Naver integer
+  WGS84 × 10⁷ (one-line conversion `parseInt(x)/1e7`, no proj4
+  dependency). Empirically verified 2026-05-07 against real query
+  "어니언 성수" → `mapx=1270581051` → `127.0581051` (성수동 정확
+  매칭). The official Naver doc has an inconsistency — text says
+  "WGS84 좌표계 기준", sample shows 2016-era KATECH values —
+  resolved in favor of doc text + empirical confirmation; see
+  Verification Principles Case #4 for the general lesson.
+- Result max per query: 15 (Kakao) → 5 (Naver). Manual search UX
+  slightly worse for ambiguous queries; friend-demo on 성수 cafes
+  has been verified to return adequate matches with 5.
+- Provider place_id: Kakao stable id → Naver none. Affects dedup
+  if we ever want "external_place_id" lookup. v1 code doesn't use
+  external place_id (SavedPlace.id = Supabase uuid). Future
+  mitigation if needed: synthesize stable hash from
+  `(name + jibun_address)`.
+- HTML `<b>` tags wrap matched substring in Naver `title` — client
+  strips with one regex.
+
+**What stays from D5:**
+
+- POI rendering on Mapbox (custom) tiles. Naver Open API TOS allows
+  search-result display in 3rd-party apps; D5's "Naver TOS restricts
+  overlay on non-Naver renderers" concern was about NCP Maps SDK
+  (the rendering SDK product), not the Open API Search product —
+  separate TOS, separate license.
+- Korean POI coverage requirement.
+- Attribution requirement: "Powered by Kakao" → "Powered by Naver"
+  (TOS-required for Naver Open API).
+- `spec/data-shapes.ts` `KakaoPlaceResult` interface stays
+  (renamed conceptually as the common provider-narrowed shape;
+  both providers map cleanly into it).
+
+**Migration path back to D5 (Kakao Local API):**
+
+1. Founder obtains 사업자 등록증 (or a co-founder/family member
+   with one onboards as the Kakao app admin).
+2. Activate 카카오맵 product in Kakao Developer Console.
+3. Restore `src/kakao/client.ts` from archived state (preserved
+   in repo with archive header comment, never deleted, per D5b
+   implementation policy).
+4. Swap `src/save-flow/SaveModal.tsx` import: `naver/client` →
+   `kakao/client`.
+5. Swap `.env`: `EXPO_PUBLIC_NAVER_CLIENT_ID/_SECRET` →
+   `EXPO_PUBLIC_KAKAO_REST_API_KEY`.
+6. Update attribution back to "Powered by Kakao".
+7. Smoke-test 5 save paths.
+
+**Phase 10 evaluation gate (before App Store / Play Store launch):**
+
+Re-evaluate POI provider:
+
+- (a) Kakao biz reg viable by then → migrate per above. Preferred
+  long-term: better quota, stable place_id, distance field, larger
+  per-query result set.
+- (b) Naver Open API still meets demand (quota + freshness + TOS
+  compliance) → continue, add the "Powered by Naver" attribution
+  to App Store screenshots + Phase 10 ToS doc.
+- (c) Neither (e.g. both API surfaces tightened, founder still no
+  biz reg) → architectural pivot to one of: OSM Nominatim
+  hybrid for Korean POIs / Mapbox Search Box (commercial license
+  via Mapbox account) / "drop pin on map, no provider search"
+  flow (significant wedge re-think).
+
+**Implementation files affected:**
+
+- NEW: `src/naver/client.ts` — mirrors `src/kakao/client.ts`
+  shape, Result<T> tagged union preserved, mapx/mapy ÷ 1e7
+  conversion, Korea-bbox sanity assert as fail-fast guard against
+  format changes, `<b>` tag strip in title.
+- ARCHIVED: `src/kakao/client.ts` — kept in repo with archive
+  header comment, code unchanged. Migration target per D5b
+  reverse path.
+- MODIFIED: `src/save-flow/SaveModal.tsx` — single-line import
+  swap + attribution string change.
+- UNCHANGED: `app.config.ts` — credentials are in `.env`, not
+  Expo plugin config.
+- MODIFIED: `.env.example` — adds `EXPO_PUBLIC_NAVER_CLIENT_ID`
+  + `EXPO_PUBLIC_NAVER_CLIENT_SECRET`.
+- MODIFIED: `App.tsx` — boot-log assertion extended to include
+  naver presence flag.
+
+**Sanity-check evidence in support of D5b** (verified 2026-05-07):
+
+1. Schema verified verbatim from `naver/naver-openapi-guide` GitHub
+   repo: `ko/service-apis/search/local/local.md`.
+2. Field-by-field comparison with Kakao Local: 0 critical losses
+   for v1 use case; minor losses (`category_group_code`, `phone`,
+   stable place_id, 15→5 result count) all defer cleanly.
+3. Coordinate format: WGS84 × 10⁷ integer (NOT KATECH despite one
+   community claim) — empirical evidence from real API call against
+   real query, conversion `parseInt(mapx)/1e7` returns coordinates
+   that land in the expected 성수동 location.
+4. Real call (HTTP 200) verified end-to-end against live Naver
+   endpoint before any code was written, per Verification
+   Principles Case #4.
+
 ### D6 — Data model
 
 **Considered:** (A) Bare minimum; (B) Pragmatic v1 with OG cache; (C) Rich
