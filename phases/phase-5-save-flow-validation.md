@@ -579,16 +579,39 @@ implementation track.
       via the share sheet:
   - iOS: share-sheet entry reads the brand name (not the bundle slug)
   - Android: intent picker reads the brand name
+
+  **DEFERRED to Track B (real device testing).** Track A
+  (emulator) cannot exercise the iOS share sheet at all (no iOS
+  emulator on Windows host) and the Android emulator's intent
+  picker behavior diverges from real-device per the Phase 5
+  cross-phase entry "Android share-sheet host-filter granularity."
+  Verified 2026-05-11 that the in-app modal title renders `자국`
+  correctly (`자국에 저장하기` headline) on the Android emulator —
+  this is the strongest signal Track A can provide for brand-on-app
+  rendering. Real-device share-sheet entry name verification gates
+  with Track B's first real-device build.
+
 - [ ] Task #9 smoke-test re-run (all 5 paths) on real device with
       rename applied — confirms no share-extension wiring regression
       from the rename + that the new display name is what actually
       surfaces in both platforms' picker
-- [ ] `.env` boot-time verification: all three required vars present
+
+  **DEFERRED to Track B (real device testing).** Same reason as
+  sub-cond 3: emulator-only verification is insufficient for this
+  sub-condition's stated purpose. Track A's 2026-05-11 verification
+  exercised paths 2 (clipboard → manual modal open via FAB) and 4
+  (Naver Place URL share intent → AUTO_RESOLVE → save → DB persist
+  → pin render) end-to-end on the Android emulator with the
+  rename applied; no wiring regression observed. Real-device picker
+  cosmetics + iOS-specific share extension activation gate with
+  Track B.
+
+- [x] `.env` boot-time verification: all three required vars present
       and the app actually authenticates against Supabase before the
       friend-demo. Required:
-  - `EXPO_PUBLIC_KAKAO_REST_API_KEY` (or Kakao search throws on first
-    keyword query — surfaces as "검색 실패" mid-demo with no
-    actionable fallback for the user)
+  - `EXPO_PUBLIC_NAVER_CLIENT_ID` + `EXPO_PUBLIC_NAVER_CLIENT_SECRET`
+    (per D5b — was `EXPO_PUBLIC_KAKAO_REST_API_KEY` pre-D5b; both
+    required because either-alone is non-functional)
   - `EXPO_PUBLIC_TEST_USER_EMAIL`
   - `EXPO_PUBLIC_TEST_USER_PASSWORD`
   - corresponding test-user account exists in Supabase dashboard
@@ -598,14 +621,21 @@ implementation track.
     saves into a fixture nobody can read post-demo)
 
   Failure mode for this gate sub-condition is high-impact + late-
-  surfacing: the symptoms hide as "Kakao 검색이 안 돼요" /
+  surfacing: the symptoms hide as "Naver 검색이 안 돼요" /
   "저장은 됐는데 다시 보면 사라져요", easily mistaken for save-flow
   bugs during the 10-min observation. Preempt via a one-time boot
-  log: temporarily add `console.log('[boot]', { kakao: !!REST_KEY,
-  email: !!TEST_EMAIL, password: !!TEST_PASSWORD })` to App.tsx
-  near the existing token assertion; verify "all true" in Metro
-  before handing the phone to the friend; remove the log post-demo
-  (or roll into Phase 6's auth UI which subsumes the check).
+  log: temporarily add `console.log('[boot]', { naver: !!CLIENT_ID
+  && !!CLIENT_SECRET, email: !!TEST_EMAIL, password: !!TEST_PASSWORD })`
+  to App.tsx near the existing token assertion; verify "all true"
+  in Metro before handing the phone to the friend; remove the log
+  post-demo (or roll into Phase 6's auth UI which subsumes the check).
+
+  **Verified 2026-05-11:** boot log assertion `[boot] { naver: true,
+  email: true, password: true }` confirmed in Metro on emulator
+  relaunch; test user f0b880d2-f4f8-4fef-90b2-8fe2a612d97a
+  authenticates against cloud Supabase and reads its 4 saved_places
+  rows via RLS; the assertion lives in App.tsx (lines 45-49) per the
+  doc's recipe.
 
 ### Failure mode
 

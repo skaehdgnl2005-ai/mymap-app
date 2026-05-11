@@ -1,5 +1,5 @@
 # PROJECT_STATE
-Last updated: 2026-05-11 (Phase 5 Track A mid-execution cross-phase issue: "Claude Code Read tool image dimension limit (2000px) blocks raw `adb screencap` PNGs" added to Cross-phase issues / drift section. Discovered mid-Step-7d when Naver keyword-search visual verification hit the Read limit on a 1080×2400 Pixel_7 capture; promoted to permanent cross-phase entry because every phase from Phase 5 onward exercises the same screencap→pull→Read pipeline for visual checks against locked spec. Mitigation recipe documented for both Windows host — PowerShell `System.Drawing` resize, no install needed — and Unix host with `magick`. Width=900 resize required for Pixel_7 portrait captures since width=1600 still yields >2000px on the long edge. No code or spec changes; PROJECT_STATE.md only.)
+Last updated: 2026-05-11 (Phase 5 Track A verification: Steps 7d/7e/7f all PASS on Pixel_7 Android emulator. 7d Naver search via scripts/test-phase5-naver.mjs (D5b empirical case reproducible, English-Romanized queries return 0 items but graceful via ListEmptyComponent). 7e save flow via scripts/test-phase5-save.mjs direct insert + emulator relaunch confirms pin renders east of "성수" station at inserted coords. 7f AUTO_RESOLVE end-to-end via adb share intent: classifier + og-resolver + Naver search + handleSave → DB row landed. One bug found+fixed mid-verification: synthetic id naver:<address> collided in FlatList keyExtractor when two results share an address; suffix with response index (commit ffb2b45). T-24h gate sub-cond 5 ticked off with Naver substitution per D5b. Sub-conds 3-4 explicitly deferred to Track B (real device share-sheet name + 5-path smoke test). New cross-phase issue: "Claude Code Read tool 2000px image dimension limit blocks raw adb screencap PNGs" added with PowerShell System.Drawing mitigation recipe (works on Windows without ImageMagick install).)
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -49,6 +49,43 @@ thesis confirmed via 10-min friend-demo per pass criteria. A
 friend-demo failure invalidates the wedge (product reopen, not
 implementation reopen) — keep the gates distinct in any
 post-demo retro.
+
+**Phase 5 Track A progress (2026-05-11):** Steps 7d/7e/7f all
+PASS on Pixel_7 Android emulator. (a) Step 7d — Naver search:
+text-channel verified via `scripts/test-phase5-naver.mjs`, all
+items pass Korea bbox sanity, D5b empirical evidence
+("어니언 성수" → 127.0581051, 37.5446909) reproducible. Found
+quirk: English-Romanized queries return zero items (Naver index
+is Korean-first); SaveModal's ListEmptyComponent handles
+gracefully so no code change. (b) Step 7e — save flow: direct
+DB insert via `scripts/test-phase5-save.mjs` confirms
+signin + RLS + insert + select round-trip; relaunched app picks
+up the new pin via listPlaces() and renders it east of "성수"
+station label at the expected coords. (c) Step 7f — AUTO_RESOLVE:
+sent Naver Place URL via adb share intent, modal opened with
+URL chip, og-resolver fetched the page, Naver search ran on the
+returned og_title, top result displayed in big card, tap save →
+DB insert confirmed (cloud row matches inserted source_url).
+Full E2E path verified on emulator including og-resolver call.
+One real bug found + fixed mid-verification: synthetic id
+`naver:<address>` collided in FlatList keyExtractor when two
+results share an address (single building hosting multiple
+businesses) → suffix with response index for guaranteed
+uniqueness (commit ffb2b45). Sub-conditions 3-4 of the T-24h
+gate (real-device share-sheet display name + 5-path smoke test)
+intentionally deferred to Track B per the standing "iOS / real
+device gates with Track B" split. Sub-condition 5 (.env
+boot-time verification) ticked off — Naver substitution per D5b
+applied to the phase doc text. Mid-verification cross-phase
+issue added: Claude Code Read tool's 2000px image dimension
+limit blocks raw adb screencap; mitigation recipe (PowerShell
+System.Drawing on Windows host, magick on Unix) documented
+once, applies to all visual-verification workflows Phase 5
+onward. Three new verification artifacts in repo:
+`scripts/test-phase5-naver.mjs`, `scripts/test-phase5-save.mjs`,
+and the cross-phase issue entry. The friend-demo validation
+gate still remains user-driven and gates with Track B real-
+device readiness.
 
 Two mid-phase decisions worth recording while context is warm:
 
