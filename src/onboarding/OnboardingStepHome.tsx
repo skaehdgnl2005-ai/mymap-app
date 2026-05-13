@@ -68,7 +68,7 @@ export const OnboardingStepHome: React.FC<Props> = ({ userId, onNext }) => {
       <Text style={styles.subtitle}>홈이 지도에 표시되면 거리 가늠이 쉬워져요</Text>
 
       <View style={styles.searchWrap}>
-        <RegionPicker onPick={(result, _gu) => void handlePick(result)} />
+        <RegionPicker onPick={(result, _gu, _dong) => void handlePick(result)} />
       </View>
 
       {saving && (

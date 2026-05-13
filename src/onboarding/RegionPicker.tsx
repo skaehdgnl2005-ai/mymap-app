@@ -4,31 +4,119 @@
 // question "주로 어느 동네에서 지내세요?" is dong-level by intent; forcing a
 // specific POI pick (cafe/landmark) was a mismatch. This cascade matches
 // the natural Korean way of describing where you live: 서울특별시 →
-// 성동구 → 성수동.
+// 성동구 → 성수1가동.
 //
-// v1 scope (per src/data/seoul-districts.ts header): Seoul only. 시 is a
-// fixed display row, 구 opens a Modal picker, 동 is the existing
-// AddressSearchInput scoped to the chosen 구 via categoryKeyword.
-// Non-Seoul beta users trigger Phase 10 expansion to full Korea.
+// v1 scope: Seoul only. 시 is a fixed display row, 구 opens a Modal,
+// 동 opens a second Modal (sourced from SEOUL_DONGS_BY_GU). Non-Seoul
+// beta users trigger Phase 10 expansion to full Korea.
 //
-// On pick: the AddressSearchInput returns a KakaoPlaceResult shape; we
-// pass that up to OnboardingStepHome unchanged so the existing
-// savePlace() insert payload logic stays intact.
+// Centroid sourcing: 동주민센터 / 행정복지센터 buildings sit at each
+// 동's administrative anchor (roughly the geographic center). We query
+// Naver Local Search for "{dong} {gu} 행정복지센터" at pick time → use
+// the first result's coordinates as the dong centroid. Fallback to the
+// hardcoded 구 centroid (SEOUL_GU_CENTROIDS) only when Naver returns 0
+// results (rare; happens for very small/recently-restructured 동).
+//
+// The picker calls onPick with a synthetic KakaoPlaceResult so the
+// caller (OnboardingStepHome) can use its existing savePlace insert
+// payload without branching on cascade-vs-place flow.
 
 import React, { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import type { KakaoPlaceResult } from '../../spec/data-shapes';
-import { SEOUL_DISTRICTS, type SeoulDistrict } from '../data/seoul-districts';
-import { AddressSearchInput } from './AddressSearchInput';
+import { naverSearchByKeyword } from '../naver/client';
+import {
+  SEOUL_DISTRICTS,
+  SEOUL_DONGS_BY_GU,
+  SEOUL_GU_CENTROIDS,
+  type SeoulDistrict,
+} from '../data/seoul-districts';
 
 interface Props {
-  onPick: (result: KakaoPlaceResult, gu: SeoulDistrict) => void;
+  onPick: (result: KakaoPlaceResult, gu: SeoulDistrict, dong: string) => void;
 }
 
 export const RegionPicker: React.FC<Props> = ({ onPick }) => {
   const [gu, setGu] = useState<SeoulDistrict | null>(null);
+  const [dong, setDong] = useState<string | null>(null);
   const [showGuModal, setShowGuModal] = useState(false);
+  const [showDongModal, setShowDongModal] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGuPick = (picked: SeoulDistrict): void => {
+    setGu(picked);
+    // Clear the previous 동 — selecting a new 구 invalidates any prior
+    // 동 pick since 동 names are scoped to their parent 구.
+    setDong(null);
+    setError(null);
+    setShowGuModal(false);
+  };
+
+  const handleDongPick = async (pickedDong: string): Promise<void> => {
+    if (!gu) return; // defensive — UI prevents this
+    setDong(pickedDong);
+    setShowDongModal(false);
+    setResolving(true);
+    setError(null);
+
+    // Centroid sourcing: query Naver for the 행정복지센터 building of the
+    // picked dong. That building is the official administrative anchor
+    // and sits at the geographic center of the dong, giving us an
+    // accurate centroid. Strip the "행정복지센터" suffix logic isn't
+    // needed — Naver returns the building's coords regardless of how the
+    // result's display name reads.
+    const query = `${pickedDong} ${gu} 행정복지센터`;
+    const r = await naverSearchByKeyword(query);
+
+    let coords: [number, number] | null = null;
+    if (!r.error && r.data.length > 0) {
+      const first = r.data[0];
+      if (first) {
+        const lng = parseFloat(first.x);
+        const lat = parseFloat(first.y);
+        if (Number.isFinite(lng) && Number.isFinite(lat)) {
+          coords = [lng, lat];
+        }
+      }
+    }
+
+    // Fallback: hardcoded 구 centroid. Logs the fallback path so we can
+    // see in dev which 동s consistently miss the Naver lookup and add
+    // explicit centroids later if needed.
+    if (!coords) {
+      console.warn(
+        `[RegionPicker] no Naver result for "${query}" — falling back to ${gu} centroid`,
+      );
+      coords = [...SEOUL_GU_CENTROIDS[gu]] as [number, number];
+    }
+
+    setResolving(false);
+
+    // Synthesize a KakaoPlaceResult so the caller's existing
+    // savePlace insert payload doesn't need to branch on cascade vs.
+    // place-pick flow. The synthetic id is unique to this dong + gu;
+    // address fields reflect the cascade picks.
+    const synthetic: KakaoPlaceResult = {
+      id: `seoul-dong:${gu}-${pickedDong}`,
+      place_name: pickedDong,
+      category_name: '행정동',
+      address_name: `서울특별시 ${gu} ${pickedDong}`,
+      road_address_name: null,
+      x: String(coords[0]),
+      y: String(coords[1]),
+    };
+    onPick(synthetic, gu, pickedDong);
+  };
 
   return (
     <View style={styles.wrap}>
@@ -48,21 +136,28 @@ export const RegionPicker: React.FC<Props> = ({ onPick }) => {
         <Text style={styles.chevron}>›</Text>
       </Pressable>
 
-      {/* 동 — Naver-backed search, narrowed by the chosen 구 via the
-          existing categoryKeyword prefix mechanism. Only enabled after a
-          구 has been picked (otherwise the search would span all of Korea
-          and lose the cascade benefit). */}
-      {gu && (
-        <View style={styles.dongWrap}>
-          <Text style={styles.dongHeader}>동/장소</Text>
-          <AddressSearchInput
-            placeholder={`${gu} 안에서 검색 (예: 성수동, 역삼역)`}
-            categoryKeyword={gu}
-            onPick={(result) => onPick(result, gu)}
-          />
+      {/* 동 row — opens Modal picker once 구 is set. */}
+      <Pressable
+        style={[styles.pressableRow, !gu && styles.pressableRowDisabled]}
+        onPress={() => gu && setShowDongModal(true)}
+        disabled={!gu}
+      >
+        <Text style={styles.rowLabel}>동</Text>
+        <Text style={[styles.rowValue, !dong && styles.rowValuePlaceholder]}>
+          {dong ?? (gu ? '선택하세요' : '구를 먼저 선택하세요')}
+        </Text>
+        <Text style={styles.chevron}>›</Text>
+      </Pressable>
+
+      {resolving && (
+        <View style={styles.resolvingRow}>
+          <ActivityIndicator />
+          <Text style={styles.resolvingText}>위치를 확인하는 중…</Text>
         </View>
       )}
+      {error && <Text style={styles.error}>{error}</Text>}
 
+      {/* 구 picker Modal */}
       <Modal
         visible={showGuModal}
         animationType="slide"
@@ -81,17 +176,38 @@ export const RegionPicker: React.FC<Props> = ({ onPick }) => {
             renderItem={({ item }) => {
               const selected = item === gu;
               return (
-                <Pressable
-                  style={styles.guRow}
-                  onPress={() => {
-                    setGu(item);
-                    setShowGuModal(false);
-                  }}
-                >
-                  <Text style={[styles.guRowText, selected && styles.guRowTextSelected]}>
-                    {item}
-                  </Text>
-                  {selected && <Text style={styles.guRowCheck}>✓</Text>}
+                <Pressable style={styles.row} onPress={() => handleGuPick(item)}>
+                  <Text style={[styles.rowText, selected && styles.rowTextSelected]}>{item}</Text>
+                  {selected && <Text style={styles.rowCheck}>✓</Text>}
+                </Pressable>
+              );
+            }}
+          />
+        </View>
+      </Modal>
+
+      {/* 동 picker Modal — populated from SEOUL_DONGS_BY_GU[selected gu] */}
+      <Modal
+        visible={showDongModal && gu !== null}
+        animationType="slide"
+        onRequestClose={() => setShowDongModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{gu ?? ''} 동 선택</Text>
+            <Pressable onPress={() => setShowDongModal(false)} hitSlop={12}>
+              <Text style={styles.modalClose}>닫기</Text>
+            </Pressable>
+          </View>
+          <FlatList
+            data={gu ? SEOUL_DONGS_BY_GU[gu] : []}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => {
+              const selected = item === dong;
+              return (
+                <Pressable style={styles.row} onPress={() => void handleDongPick(item)}>
+                  <Text style={[styles.rowText, selected && styles.rowTextSelected]}>{item}</Text>
+                  {selected && <Text style={styles.rowCheck}>✓</Text>}
                 </Pressable>
               );
             }}
@@ -126,7 +242,11 @@ const styles = StyleSheet.create({
     borderColor: '#E0DED7',
     borderRadius: 8,
     backgroundColor: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 8,
+  },
+  pressableRowDisabled: {
+    backgroundColor: '#F8F7F4',
+    opacity: 0.7,
   },
   rowLabel: {
     fontSize: 13,
@@ -146,13 +266,20 @@ const styles = StyleSheet.create({
     color: '#9A9A95',
     marginLeft: 8,
   },
-  dongWrap: {
-    flex: 1,
+  resolvingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
   },
-  dongHeader: {
+  resolvingText: {
     fontSize: 13,
-    color: '#9A9A95',
-    marginBottom: 8,
+    color: '#6B6B6B',
+  },
+  error: {
+    fontSize: 12,
+    color: '#C04545',
+    marginTop: 8,
   },
   modalContainer: {
     flex: 1,
@@ -175,7 +302,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B6B6B',
   },
-  guRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -184,15 +311,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#F0EEE7',
   },
-  guRowText: {
+  rowText: {
     fontSize: 16,
     color: '#1A1850',
   },
-  guRowTextSelected: {
+  rowTextSelected: {
     fontWeight: '600',
     color: '#2D2A6B',
   },
-  guRowCheck: {
+  rowCheck: {
     fontSize: 16,
     color: '#2D2A6B',
     fontWeight: '700',
