@@ -2871,17 +2871,9 @@ result:
 
 | # | Check | Result |
 |---|---|---|
-| 1 | Email signup → routes to onboarding Step 1 | **Not directly tested** — Phase 5 test-user session persisted in AsyncStorage from supabase-js, so `useSession.getSession()` restored that session on cold boot and the AuthScreen was correctly skipped (the "returning user skips auth" branch firing). This is itself evidence that the auth gate works as designed; explicit signup-form verification deferred to first fresh-install scenario (or via `adb shell pm clear com.jaguk.app`). |
-| 2 | HOME save → pin renders on map | **PASS** |
+| 1 | Email signup → routes to onboarding Step 1 | **PASS** (after `adb shell pm clear` of the Phase 5 persisted session, real-email signup via Gmail `+alias`. Two ancillary issues surfaced + fixed inline: Supabase "Confirm email" was ON in the project — user manually confirmed via Auth → Users dashboard; AuthScreen error mapper was over-greedy on "email" matches, fixed in commit 3f2673f to surface verbatim Supabase errors). |
+| 2 | HOME save → pin renders on map | **PASS** (verified end-to-end via the new 3-tier 시/구/동 cascade — pick 강남구 → pick 역삼동 → Naver 행정복지센터 query → HOME pin at dong centroid). |
 | 3 | Force-quit + relaunch → lands on map directly (no onboarding re-walk) | **PASS** |
-
-Item 1's "not tested" is **not a regression** — the same code path
-that bypassed AuthScreen for the persisted session is the same one
-that will route fresh users TO it. Strictly, this means item 1 has
-ONLY been code-verified (not runtime-verified) for fresh signup
-flow. Phase 10 (App Store gate) will exercise this end-to-end on a
-real-device fresh install — heavyweight verification reserved for
-that milestone per the risk-tier triage.
 
 **Phase 6 user-feedback follow-ups landed in same session**:
 
