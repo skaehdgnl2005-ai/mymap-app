@@ -16,8 +16,8 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'rea
 
 import type { KakaoPlaceResult, SavedPlace } from '../../spec/data-shapes';
 import { savePlace, type NewSavedPlace } from '../places/repo';
-import { AddressSearchInput } from './AddressSearchInput';
 import { ProgressDots } from './ProgressDots';
+import { RegionPicker } from './RegionPicker';
 
 interface Props {
   userId: string;
@@ -68,7 +68,7 @@ export const OnboardingStepHome: React.FC<Props> = ({ userId, onNext }) => {
       <Text style={styles.subtitle}>홈이 지도에 표시되면 거리 가늠이 쉬워져요</Text>
 
       <View style={styles.searchWrap}>
-        <AddressSearchInput placeholder="예: 성수동, 집 근처 카페" onPick={handlePick} />
+        <RegionPicker onPick={(result, _gu) => void handlePick(result)} />
       </View>
 
       {saving && (

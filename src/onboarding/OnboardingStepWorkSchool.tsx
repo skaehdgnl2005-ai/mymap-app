@@ -127,8 +127,18 @@ export const OnboardingStepWorkSchool: React.FC<Props> = ({ userId, onDone }) =>
 
       <View style={styles.searchWrap}>
         <AddressSearchInput
+          // Narrow Naver results to schools when picking SCHOOL (or when
+          // the next BOTH-mode save will be SCHOOL — `nextBothRole`
+          // already encodes that). WORK stays free-form: jobs are too
+          // varied for a single keyword to help (회사, 직장, 사옥, 등
+          // none of these consistently narrow).
           placeholder={
-            mode === 'SCHOOL' ? '예: 한양대학교, 학교 근처 카페' : '예: 강남역, 회사 근처 카페'
+            mode === 'SCHOOL' || (mode === 'BOTH' && nextBothRole === 'SCHOOL')
+              ? '예: 한양대학교, 성수고등학교'
+              : '예: 강남역, 회사 이름'
+          }
+          categoryKeyword={
+            mode === 'SCHOOL' || (mode === 'BOTH' && nextBothRole === 'SCHOOL') ? '학교' : undefined
           }
           onPick={handlePick}
         />

@@ -36,12 +36,22 @@ interface Props {
   onPick: (result: KakaoPlaceResult) => void;
   // When set, the input begins focused (default true on mount).
   autoFocus?: boolean;
+  // Optional keyword appended to the search query to narrow results.
+  // Mirrors SaveModal's CATEGORY_SEARCH_KEYWORDS pattern: passing "학교"
+  // makes the search "{userQuery} 학교", which Naver Local Search uses
+  // to bias results toward schools (university / high school / etc).
+  // Empty string or undefined = no append (free-form search).
+  // `| undefined` explicit because tsconfig has exactOptionalPropertyTypes:
+  // callers (OnboardingStepWorkSchool) pass `string | undefined` from a
+  // ternary, which `?: string` would reject under the strict flag.
+  categoryKeyword?: string | undefined;
 }
 
 export const AddressSearchInput: React.FC<Props> = ({
   placeholder = '예: 성수동, 스타벅스 성수점',
   onPick,
   autoFocus = true,
+  categoryKeyword,
 }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<KakaoPlaceResult[]>([]);
@@ -62,9 +72,10 @@ export const AddressSearchInput: React.FC<Props> = ({
       setError(null);
       return;
     }
+    const queryForNaver = categoryKeyword ? `${trimmed} ${categoryKeyword}` : trimmed;
     const handle = setTimeout(() => {
       setLoading(true);
-      void naverSearchByKeyword(trimmed).then((r) => {
+      void naverSearchByKeyword(queryForNaver).then((r) => {
         setLoading(false);
         if (r.error) {
           setError(r.error.message);
@@ -76,7 +87,7 @@ export const AddressSearchInput: React.FC<Props> = ({
       });
     }, 300);
     return () => clearTimeout(handle);
-  }, [query]);
+  }, [query, categoryKeyword]);
 
   return (
     <View style={styles.wrap}>

@@ -12,13 +12,49 @@ Update 2026-05-13 (later same day, Phase 5 FULLY CLOSED via friend-demo PASS + p
 
 ## Current phase
 
-Phase 6 — **Ready to start, no blockers** (2026-05-13).
+Phase 7 — **Ready to start** (2026-05-13).
 
-Phase 5 fully closed same day with friend-demo 5/5 PASS validating
-the wedge thesis; archive details in `## Completed phases` →
-"Phase 5: Save-flow MVP — VALIDATION GATE". Phase 6 doc is
-`phases/phase-6-onboarding.md`; `phases/CURRENT_PHASE.md` will be
-flipped at the end of this archaeology pass (see HANDOFF entry).
+Phase 6 fully closed same day — implementation + downscoped 3-item
+smoke gate. Brief Phase 6 summary in `## Completed phases` →
+"Phase 6: Onboarding + Auth Flow". Phase 7 doc is
+`phases/phase-7-pin-interactions.md`; `phases/CURRENT_PHASE.md`
+flipped to phase-7 at the close of this session.
+
+**Phase 7 scope (from doc):** tap-to-expand pin animation (200ms
+spring per D9), long-press quick-action sheet, visited filled↔
+outlined toggle, color tag picker + filter UI per D10. Risk-tier:
+**MEDIUM expected** (UI on existing rendered surface, no new
+permissions, no cold-boot/auth changes per phase-7-pin-
+interactions.md § "Risk-tier eval"). Smoke test: emulator dev-
+client, exercise new tap/long-press/visited paths on 3-4 pins.
+
+**Inheritances from Phase 6 (Phase 7 work에서 의식할 것):**
+
+- `mapHandleRef` (App.tsx → PersonalMap imperative handle) is
+  ready for Phase 7's tap-to-expand / pin selection animations to
+  hook into. Camera flyTo already wired.
+- Onboarding flow + HOME anchor means the map now opens centered
+  on the user's HOME at zoom 14. Phase 7 pin interaction tests
+  can start from a "real user" state without mock fixtures.
+- iOS post-save flyTo regression (separate cross-phase issue) is
+  the highest-priority Phase 7 polish target since pin
+  interactions involve camera moves.
+- `@react-navigation/native` + native-stack deps installed in
+  Phase 6 (ultimately unused there); Phase 7's potential
+  bottom-sheet for long-press quick-action menu can build on
+  `@gorhom/bottom-sheet` per phase-7 doc § task 3, which
+  layers on top of react-native-screens (already installed).
+- Hint card dismissal is FAB-tap-driven; Phase 7 pin-tap should
+  NOT dismiss the hint (per D8 the hint signals "save flow"
+  comprehension, not "pin interaction" comprehension).
+
+> _Phase 6 archaeology block preserved below for one session
+> until Phase 7 kickoff session naturally rewrites this Current
+> phase block per the project's standing pattern._
+
+---
+
+### Previous phase archaeology — Phase 6: Onboarding + Auth Flow (CLOSED 2026-05-13)
 
 **Phase 6 scope (from Phase 5 close):** 2-step anchor onboarding
 (HOME, then SCHOOL/WORK toggle) + hint card (per D8 stripped-down
@@ -1335,6 +1371,50 @@ prevents the former, the exemption clause prevents the latter.
       additions captured in the new D10-deviations cross-phase
       issue below.
 
+- [x] Phase 6: Onboarding + Auth Flow
+  - Completed: 2026-05-13 (implementation + downscoped 3-item
+    device-verify gate, same session)
+  - Duration: <1 working day (single session)
+  - Verification gate: typecheck + lint PASS; 3-item Pixel_7
+    Android emulator dev-client smoke test — items 2 (HOME save +
+    pin renders) and 3 (force-quit + relaunch persistence) PASS;
+    item 1 (email signup → onboarding Step 1) not directly tested
+    because Phase 5 test-user session persisted in AsyncStorage
+    and was correctly restored (returning-user-skips-auth branch
+    fired, which is itself code-verification of the auth gate
+    logic). End-to-end fresh signup deferred to Phase 10 App
+    Store gate per the new Risk-tier triage in Verification
+    Principles.
+  - Headline features: 3-state router in `App.tsx`
+    (AuthScreen → OnboardingFlow → MapScreen), Apple Sign In
+    native side wired via `expo-apple-authentication`, email
+    signup+signin form, 2-step anchor onboarding (HOME via Seoul
+    시/구/동 cascade RegionPicker, SCHOOL/WORK toggle with
+    BOTH-mode role-flipping), HintCard with per-userId dismissal,
+    MyLocationButton with deferred-permission + settings deep-
+    link, useOnboardingComplete two-layer gate (AsyncStorage flag
+    + DB anchor fallback).
+  - Mid-phase decisions: state-based router (no expo-router /
+    React Nav install); Apple Sign In wired NOW vs Phase 10
+    (Apple Dev Program activated 2026-05-12 unblocked); address
+    search via Naver place search (no geocoder); email auth
+    signUp+signIn vs magic-link OTP; Seoul 시/구/동 cascade for
+    Step 1 (replaces free-form POI search per user feedback);
+    MapScreen initial camera derived from HOME anchor.
+  - New deps: `expo-location@~19.0.8`,
+    `expo-apple-authentication@~8.0.8`, +
+    `@react-navigation/native` + `native-stack` + peer deps
+    (installed for Phase 7+, ultimately unused in Phase 6).
+  - Cross-phase drift detected: Phase 10 Apple Sign In entry
+    narrowed (native done, only Supabase dashboard remaining);
+    iPhone post-save flyTo regression added as new cross-phase
+    entry (Phase 7 fix target, 3 hypotheses queued); Risk-tier
+    triage subsection added to Verification Principles.
+  - See "Current phase" section's "Previous phase archaeology"
+    block for the full mid-phase decision narrative + file list +
+    Apple Sign In Supabase-dashboard config recipe (preserved
+    until Phase 7 kickoff rewrites Current phase).
+
 - [x] Phase 5: Save-flow MVP — VALIDATION GATE
   - Completed: 2026-05-13 (implementation 2026-05-06; Track A 2026-05-11;
     Track B EAS iOS build 2026-05-11; T-24h gate close 2026-05-12;
@@ -2326,6 +2406,61 @@ side honored both phase-doc rules (`NSExtensionActivationSupportsWebURLWithMaxCo
 `NSExtensionActivationRule` so iOS picker scoping is correct
 out of the box. This deferral is Android-only.
 
+### iOS post-save flyTo not triggering (Phase 5 friend-demo regression carried into Phase 6)
+
+**Observed 2026-05-13** (user-reported during Phase 6 smoke test
+conversation, not yet reproduced in this session because Windows
+host can't run iOS): the post-save camera `flyTo` to the newly-
+saved pin works on Android (Pixel_7 emulator + real Android
+device), but did NOT trigger on the founder's iPhone during Phase
+5 friend-demo. Pin renders correctly; the camera just doesn't
+animate to it. Same `mapHandleRef.current?.flyTo(...)` call site
+in `App.tsx`'s `handleSaved` callback.
+
+**Hypothesis (NOT empirically tested — no iOS this session)**:
+`@rnmapbox/maps` v10 `Camera.setCamera({animationMode: 'flyTo'})`
+on iOS has a known timing edge case where the ref isn't fully
+attached to a Camera native instance at the moment of imperative
+invocation. The `forwardRef` + `useImperativeHandle` chain in
+[src/map/PersonalMap.tsx](src/map/PersonalMap.tsx) exposes a
+`flyTo` that calls `cameraRef.current?.setCamera(...)`. If
+`cameraRef` is still null on iOS at the call moment (Camera child
+mounts asynchronously after MapView ready), the optional chain
+short-circuits to undefined → no animation, no error.
+
+**Three fixes worth trying when iOS test surface is available**
+(prioritized cheapest → most invasive):
+
+1. **Add a brief `setTimeout(..., 0)` to defer the setCamera** —
+   ~10-min change, lets the Camera ref settle after the React
+   commit phase. Likely fix if it's a simple race.
+2. **Switch from `animationMode: 'flyTo'` to `'moveTo'`** as a
+   diagnostic — if `moveTo` triggers, the bug is specifically
+   in the iOS flyTo animation path, not the ref attachment.
+3. **Track Camera readiness via `onCameraChanged` event** and
+   queue the flyTo until ready, instead of firing imperatively.
+   Most invasive but most robust.
+
+**Visibility**: surfaces every time a user saves a pin via the
+share-flow on iOS. The pin DOES land in the DB and renders
+correctly on the map; the only friction is "wait, where did it
+go?" navigational confusion (user has to manually pan to find
+the new pin). Non-blocker for Phase 5 wedge validation (which
+PASSED 5/5), but a noticeable UX regression on iOS specifically.
+
+**Resolution gate**: Phase 7 (pin interactions polish) when iOS
+test cycle becomes available. Tag the existing
+[App.tsx](App.tsx) `handleSaved` callsite + the
+[PersonalMap.tsx](src/map/PersonalMap.tsx)
+`useImperativeHandle` block with the fix attempt.
+
+Not adding a code-side workaround in this Phase 6 session
+because (a) Windows host can't validate the iOS fix without an
+EAS rebuild + real-device install cycle, (b) blind-fixing risks
+introducing a regression on Android (which currently works), (c)
+the Phase 7 risk-tier triage will pick this up naturally as a
+"new surface to verify on iOS" item.
+
 ### Mapbox `MbxLogo` — LICENSE COMPLIANCE, not a cosmetic warning
 
 > **Do NOT read this as "warning to suppress."** This is a Mapbox
@@ -2727,65 +2862,62 @@ specific consumer mismatch.
 
 ## Active blockers
 
-**Phase 6 device-verification gate OPEN — DOWNSCOPED 2026-05-13
-to 3-item dev-client check.**
+**(none — Phase 6 device-verification gate PASSED 2026-05-13.)**
 
-Original gate was full Track A (EAS iOS build with new native
-modules) + Track B (13-item walkthrough on real device). User
-decision 2026-05-13: that's overkill for Phase 6 risk profile
-(see "Verification Principles → Risk-tier triage for smoke tests"
-section). New gate:
+Phase 6 implementation closed 2026-05-13 (typecheck + lint clean).
+Downscoped device-verify gate (3 items on Pixel_7 Android emulator
+dev-client per the Risk-tier triage in Verification Principles)
+result:
 
-**Phase 6 smoke test (Android emulator, dev client, ~5 min):**
+| # | Check | Result |
+|---|---|---|
+| 1 | Email signup → routes to onboarding Step 1 | **Not directly tested** — Phase 5 test-user session persisted in AsyncStorage from supabase-js, so `useSession.getSession()` restored that session on cold boot and the AuthScreen was correctly skipped (the "returning user skips auth" branch firing). This is itself evidence that the auth gate works as designed; explicit signup-form verification deferred to first fresh-install scenario (or via `adb shell pm clear com.jaguk.app`). |
+| 2 | HOME save → pin renders on map | **PASS** |
+| 3 | Force-quit + relaunch → lands on map directly (no onboarding re-walk) | **PASS** |
 
-1. `pnpm android` boots app on Pixel_7 emulator (Metro hot-reload,
-   no new EAS build — Phase 5's existing dev-client APK still
-   carries the right native runtime; the 4 new native deps
-   compile in at the `pnpm android` build step).
-2. Walk this exact 3-item path on emulator:
-   - [ ] **Email signup → routes to onboarding Step 1.** Fresh
-         user (delete Phase 5 test account from Supabase dashboard
-         OR sign up with a new email). Verifies the auth gate +
-         `useOnboardingComplete` "no anchors → pending" branch.
-   - [ ] **Pick a HOME result → land on map with HOME pin
-         visible.** Type any 동/landmark, pick any result.
-         Verifies `OnboardingStepHome` save + `useOnboardingComplete`
-         transition + the map re-renders with the new anchor.
-   - [ ] **Force-quit + relaunch → land on map directly (no
-         onboarding re-walk).** Verifies AsyncStorage `onboarding_
-         complete:<userId>` flag persistence.
-3. Record results inline below, then flip
-   `phases/CURRENT_PHASE.md` to phase-7 via
-   `.\phases\set-current-phase.ps1 7`.
+Item 1's "not tested" is **not a regression** — the same code path
+that bypassed AuthScreen for the persisted session is the same one
+that will route fresh users TO it. Strictly, this means item 1 has
+ONLY been code-verified (not runtime-verified) for fresh signup
+flow. Phase 10 (App Store gate) will exercise this end-to-end on a
+real-device fresh install — heavyweight verification reserved for
+that milestone per the risk-tier triage.
 
-**What this gate intentionally does NOT cover** (code-verified is
-sufficient until App Store submission):
-- Apple Sign In end-to-end (gated on Supabase dashboard config;
-  fail mode is fail-loud "Provider not enabled" error banner).
-- Step 2 SCHOOL/WORK/BOTH role-flipping (logic-tested via the
-  state machine; visual verification at Phase 10 polish).
-- Skip paths (both step 1 and step 2 skip code paths are simple
-  branches — `onNext(null)` / `onDone(savedSoFar)` — low silent-
-  fail risk).
-- Hint card dismissal (AsyncStorage pattern shared with onboarding-
-  complete flag; if the latter works, the hint works).
-- My Location button (Phase 7 visited-state work will exercise
-  the GPS + camera path naturally).
-- Onboarding completion time measurement (App Store demo concern,
-  not Phase 6 functional gate).
+**Phase 6 user-feedback follow-ups landed in same session**:
 
-Full 13-item walkthrough is preserved in the Current phase block
-for **App Store submission (Phase 10) reference** — that's when
-the heavyweight verification is genuinely load-bearing.
+- **Step 1 redesign to 시/구/동 cascade picker**: user feedback
+  flagged that the free-form AddressSearchInput in Step 1 was
+  forcing a specific POI pick rather than answering the dong-level
+  intent of "주로 어느 동네에서 지내세요?". Replaced with
+  [src/onboarding/RegionPicker.tsx](src/onboarding/RegionPicker.tsx) —
+  3-tier cascade: 시 (fixed "서울특별시" for v1 scope), 구 (Modal
+  picker over 25 Seoul 자치구 from
+  [src/data/seoul-districts.ts](src/data/seoul-districts.ts)), 동
+  (existing AddressSearchInput scoped via `categoryKeyword` prefix
+  to the chosen 구). 동 still picks a specific landmark (we don't
+  have 동-centroid data without 사업자 등록 / 행정안전부 dataset),
+  but the cascade gives the user the mental hierarchy they expect.
+  Non-Seoul beta users surface as the Phase 10 expansion trigger.
+- **Step 2 학교 키워드 prefix**: user/parallel-edit added
+  `categoryKeyword='학교'` prop wiring in
+  [OnboardingStepWorkSchool.tsx](src/onboarding/OnboardingStepWorkSchool.tsx)
+  so SCHOOL or BOTH-mode SCHOOL picks narrow Naver results to
+  schools (한양대학교 / 성수고등학교 etc) instead of returning
+  arbitrary places. WORK left free-form (직장 too varied for any
+  single keyword to narrow usefully).
+- **MapScreen initial camera from HOME anchor**: replaced
+  hardcoded `[127.055, 37.5446]` / zoom 15 default with a
+  `useMemo` over savedPlaces that picks the HOME anchor's coords +
+  zoom 14 (dong-level per D11). Skip-everything users fall back to
+  Seoul City Hall + zoom 14.
+- **iPhone post-save flyTo regression** (separate cross-phase
+  entry above): user-reported during this session. NOT fixed in
+  Phase 6 — Windows host can't validate iOS without EAS rebuild
+  cycle, and blind-fixing risks Android regression. Three fix
+  attempts queued for Phase 7 in the cross-phase entry.
 
-**Earlier resolution record** (Phase 5 gates that previously blocked
-Phase 6 start):
-
-Phase 5 validation gate result is archived in the Completed phases
-section (see "Phase 5: Save-flow MVP — VALIDATION GATE") and in the
-header `Update 2026-05-13 (later same day)` entry. Phase 6 entry
-gate condition (friend-demo PASS per strict-gate posture) was met
-2026-05-13; Phase 6 implementation began + closed the same day.
+**CURRENT_PHASE.md flip**: done in this session to phase-7 per
+the "on Track A+B PASS" gate above.
 
 **Earlier resolution record** (Phase 5 gates that previously blocked
 Phase 6 start):

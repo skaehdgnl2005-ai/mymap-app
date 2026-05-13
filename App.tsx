@@ -132,10 +132,28 @@ interface MapScreenProps {
   userId: string;
 }
 
+// Seoul City Hall fallback when the user has no HOME anchor (skipped
+// onboarding). Matches the Phase 4 PersonalMap default — Korea-centroid-ish
+// for a Seoul-first cohort. Replaced once any HOME save lands.
+const SEOUL_FALLBACK_CENTER: [number, number] = [126.978, 37.5665];
+
 function MapScreen({ userId }: MapScreenProps) {
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const mapHandleRef = useRef<PersonalMapHandle>(null);
   const { visible: hintVisible, dismiss: dismissHint } = useHintCardVisible(userId);
+
+  // Initial camera derived from the user's HOME anchor (Phase 6 onboarding
+  // output). Zoom 14 is the dong-level comfortable view per D11; if the
+  // user skipped onboarding (no HOME), fall back to Seoul City Hall at
+  // the same dong-level zoom. Memoized on savedPlaces so a HOME save mid-
+  // session promotes the camera to the new HOME on the next mount only —
+  // we deliberately don't reposition the camera if the user's already
+  // scrolled around (App.tsx flyTo handles post-save camera, not re-init).
+  const initialCamera = useMemo(() => {
+    const home = savedPlaces.find((p) => p.category === 'HOME');
+    if (home) return { center: [home.lng, home.lat] as [number, number], zoom: 14 };
+    return { center: SEOUL_FALLBACK_CENTER, zoom: 14 };
+  }, [savedPlaces]);
 
   // Initial load of this user's saved places — after Phase 6 onboarding
   // there will be ≥1 anchor for a non-skipping user; for skip-everything
@@ -209,8 +227,8 @@ function MapScreen({ userId }: MapScreenProps) {
       <PersonalMap
         ref={mapHandleRef}
         savedPlaces={savedPlaces}
-        initialCenter={[127.055, 37.5446]}
-        initialZoom={15}
+        initialCenter={initialCamera.center}
+        initialZoom={initialCamera.zoom}
         onPinTap={(id) => console.log('[pin tap]', id)}
         onPinLongPress={(id) => console.log('[pin long-press]', id)}
         onClusterTap={(id) => console.log('[cluster tap]', id)}
