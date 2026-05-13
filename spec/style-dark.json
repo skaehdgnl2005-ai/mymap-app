@@ -322,7 +322,7 @@
       "type": "symbol",
       "source": "composite",
       "source-layer": "place_label",
-      "filter": ["in", ["get", "class"], ["literal", ["suburb", "neighbourhood"]]],
+      "filter": ["==", ["get", "class"], "neighbourhood"],
       "minzoom": 14,
       "maxzoom": 18,
       "layout": {
@@ -345,8 +345,8 @@
       "source": "composite",
       "source-layer": "place_label",
       "filter": ["==", ["get", "class"], "settlement_subdivision"],
-      "minzoom": 13,
-      "maxzoom": 15,
+      "minzoom": 14,
+      "maxzoom": 18,
       "layout": {
         "text-field": ["coalesce", ["get", "name:ko"], ["get", "name"]],
         "text-font": ["Pretendard Medium"],

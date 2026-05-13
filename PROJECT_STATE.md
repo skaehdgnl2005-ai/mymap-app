@@ -1,6 +1,10 @@
 # PROJECT_STATE
 Last updated: 2026-05-11 (Phase 5 Track A verification: Steps 7d/7e/7f all PASS on Pixel_7 Android emulator. 7d Naver search via scripts/test-phase5-naver.mjs (D5b empirical case reproducible, English-Romanized queries return 0 items but graceful via ListEmptyComponent). 7e save flow via scripts/test-phase5-save.mjs direct insert + emulator relaunch confirms pin renders east of "성수" station at inserted coords. 7f AUTO_RESOLVE end-to-end via adb share intent: classifier + og-resolver + Naver search + handleSave → DB row landed. One bug found+fixed mid-verification: synthetic id naver:<address> collided in FlatList keyExtractor when two results share an address; suffix with response index (commit ffb2b45). T-24h gate sub-cond 5 ticked off with Naver substitution per D5b. Sub-conds 3-4 explicitly deferred to Track B (real device share-sheet name + 5-path smoke test). New cross-phase issue: "Claude Code Read tool 2000px image dimension limit blocks raw adb screencap PNGs" added with PowerShell System.Drawing mitigation recipe (works on Windows without ImageMagick install).)
 
+Update 2026-05-11 (later same day, Phase 5 Track B iOS unblock): First Phase-5-aware EAS iOS build attempted — failed initially with `"targetName" is not allowed to be empty` from EAS Build's Joi schema validator. Root cause traced to expo-share-intent v5.1.1 `getShareExtensionName()` which strips non-`[a-zA-Z0-9]` from `iosShareExtensionName` to derive the Xcode target name; brand `'자국'` → `""` empty + no fallback → propagates as `appExtensions[].targetName: ""` in the manifest. Fix: remove `iosShareExtensionName: '자국'` from app.config.ts plugin block — falls back to default `"ShareExtension"` (ASCII-safe Xcode target) while CFBundleDisplayName (share-sheet picker label) defaults to `"${appName} - Share Extension"` = `"자국 - Share Extension"` (mixed-language, UX cost for friend-demo). Build URL: builds/6e6dd5ce-f4bb-48f1-b62a-985d1983dc33, finished status, 5min 45s cloud Mac time — strongest signal that the entire iOS Phase-5 build pipeline including the auto-generated ShareExtension Xcode target compiles end-to-end. Second sub-issue surfaced: balanced-match × pnpm dlx interaction (pnpm dlx eas-cli does NOT inherit project's pnpm.overrides → @expo/fingerprint crashes with `balanced is not a function`). Workaround: `EAS_SKIP_AUTO_FINGERPRINT=1` env var, captured as new cross-phase issue. Apple Dev Program Individual enrollment payment completed 2026-05-11 ~18:25 KST, activation pending (2026 Korean backlog: best 6h / likely 2-7d / worst 4+ wk per Apple Developer Forums Feb-Mar 2026 threads). Three new artifacts: two new cross-phase issues (expo-share-intent Hangul sanitization, pnpm dlx overrides non-inheritance) + new Verification Principles Case #4 (subagent analysis as input artifact: agent output passed well-formedness — coherent, sourced, confident — but recommended fix re-created the broken state; consumption check = verify agent's reading of primary source independently before acting).
+
+Update 2026-05-13 (later same day, Phase 5 FULLY CLOSED via friend-demo PASS + polish-tier feedback recorded + gesture fix applied): Friend-demo per Phase 5 doc formal protocol executed — 10-min hand-over-phone, founder silent, 4 post-demo questions. **5/5 paths PASS**: Path 1 (AUTO_RESOLVE / 네이버 지도 공유), Path 2 (MANUAL_RESOLVE / 인스타 공유), Path 3 (clipboard auto-detect on `+`), Path 4 (AUTO_RESOLVE 정확도 — minor ambiguity, accepted), Path 5 (force-quit + 재실행 핀 persistence). Wedge thesis empirically validated. Two polish-tier qualitative feedback items surfaced: (a) zoom/pan gesture 미끄러짐 — Mapbox 의 기본 inertia/decay 가 한국 사용자에 익숙한 네이버/카카오 맵의 짧은 스냅 decay 와 categorical 으로 다른 feel. Partial fix applied this session: `src/map/PersonalMap.tsx` `gestureSettings` prop 으로 `panDecelerationFactor: 0` + `pinchZoomDecelerationEnabled: false` + `rotateDecelerationEnabled: false` 추가. iOS pinch-zoom 자체 decay 는 `@rnmapbox/maps` API 가 안 노출해서 완전 fix 불가 — pan + Android pinch + rotate 만 잡힘. 한계 명시 기록. (b) 도로 sparsity — mapbox-streets-v8 의 KR OSM 데이터 한계로 안암역 같은 mid-density 동네에서 네이버 대비 도로 visibility 가 sparse. 친구 입에서 명시적 친구 언급 — D11 의 MapTiler migration trigger pile 에 또 추가 (현재 OR-pile: subway-degradation OR 구-absence OR zoom-feel OR road-sparsity). 사용자 결정 2026-05-13: 도로는 그대로 두기 (v1 wedge 가 navigation 이 아니라 personal pin curation 이므로 sparsity 가 wedge blocker 아님 — friend-demo 5/5 PASS 가 이 판단 empirical 지지). Phase 5 핸드오프 + Phase 6 진입 단계로 이행. 이전 (earlier today) update: Both Active blockers operational waits resolved same day. (a) Apple Dev Program ACTIVATED — hit the "likely 2-7d" branch of the projected 2026-05-11 enrollment window; Developer Portal access live, `eas device:create` + ad-hoc provisioning path now available. (b) Friend's phone OS CONFIRMED iPhone — install path locked as EAS `preview` profile + UDID registration + QR install; the alt `pnpm android --device` shortcut no longer applies. T-24h gate sub-cond 3 (real-device share-sheet display name verified on iPhone) and sub-cond 4 (5-path Task #9 smoke test executed end-to-end on real iPhone) both CLOSED 2026-05-12 — work done on founder's own iPhone after EAS `preview` build install via UDID registration. Paths 1/2/3/5 (AUTO_RESOLVE via Naver Place app share, MANUAL_RESOLVE via Instagram share, Instagram Copy Link → clipboard auto-detect on `+`, force-quit + relaunch persistence) all PASS. Path 4 (AUTO_RESOLVE *accuracy* — does the top Naver search result match the originally-shared Place URL?) had minor ambiguity; lever framework documented in this session (controllable: og-resolver query construction, results selection logic, disambiguation-degrade-to-MANUAL; not controllable: Naver Local Search ranking + chain-name collisions + generic og_titles) — no fix applied, accepted as-is for friend-demo. All T-24h sub-conds (1-5) now met; friend-demo gates only on friend's UDID registration + demo scheduling, both user-driven. Net: Phase 5 implementation + Track A + Track B + T-24h gate ALL closed; only the validation gate (friend-demo per Phase 5 doc protocol) remains. Phase 6 entry decision (strict gate vs parallel) still open. New cross-phase issue added in this update: "v8 Korean tile data 구 누락 (sibling to D11)" — Phase 4 City Hall + Phase 5 성수동 mock-pin verification both empirically surface that mapbox-streets-v8 KR tiles render 동 + 시 admin levels but skip 구 entirely; D11 MapTiler migration trigger condition extended from subway-degradation-only to (subway-degradation OR 구-absence) — friend-demo orientation friction (esp. 동명 collisions like 신사동 강남 vs 은평) now part of the OR-condition pile.
+
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
 > trigger event. Use this when you're about to hit a phase boundary
@@ -8,150 +12,49 @@ Last updated: 2026-05-11 (Phase 5 Track A verification: Steps 7d/7e/7f all PASS 
 
 ## Current phase
 
-Phase 4 — Completed on Android (PersonalMap renders the locked Style
-JSONs end-to-end on Pixel 7 emulator: cool warm-shifted base #F5F4F0,
-muted sage parks, cool soft 한강 water, Korean labels via Pretendard
-PBFs from R2, deep indigo saved pins with white category glyphs via
-runtime CircleLayer + SymbolLayer pairs, lighter indigo_soft anchor
-pins, surface_base "donut" visited pins, brand indigo NOT on any
-base-map label or road). Mapbox renderer initialized cleanly (OpenGL
-backend, EGLContext created, no JS exceptions); Metro bundled all 832
-modules in 6.5s. iOS verification still deferred per the standing
-"first EAS iOS Build deferred to end of Phase 4" cross-phase issue —
-this phase end is the trigger to actually run that EAS build.
-Active `phases/CURRENT_PHASE.md` → `phase-5-save-flow-validation.md`.
-**Phase 5 is READY TO START** — both gates that previously blocked
-it (first EAS iOS build + Phase 4 visual re-verification) closed
-2026-05-03 and 2026-05-04 respectively. See Active Blockers section
-for the brief resolution record + pointers to the detailed records.
+Phase 6 — **Ready to start, no blockers** (2026-05-13).
 
-**New intra-phase gate (added 2026-05-04):** Phase 5 implementation
-tasks #1-9 are unblocked, but the friend-demo validation test
-within Phase 5 is gated on a new "T-24h brand-lock gate" — brand
-name must be locked + applied to `app.config.ts` line 15 + verified
-on real device share sheet 24 hours before the demo. Brand decision
-intentionally deferred to a separate /office-hours session per
-2026-05-04 decision (see Open decisions → "App Store branded
-display name" + `phases/phase-5-save-flow-validation.md` →
-"T-24h brand-lock gate" for the rationale + apply recipe).
+Phase 5 fully closed same day with friend-demo 5/5 PASS validating
+the wedge thesis; archive details in `## Completed phases` →
+"Phase 5: Save-flow MVP — VALIDATION GATE". Phase 6 doc is
+`phases/phase-6-onboarding.md`; `phases/CURRENT_PHASE.md` will be
+flipped at the end of this archaeology pass (see HANDOFF entry).
 
-**Phase 5 implementation status (mid-phase, 2026-05-06):** Tasks
-#1-7 (install share-intent, configure plugin + prebuild, URL
-classifier, Kakao client, SaveModal, App.tsx wiring, clipboard +
-button) all landed in commit `feat(phase-5): save flow
-implementation` — typecheck + lint clean, no native build attempted
-yet on either platform. Tasks #8-9 (real-device build + manual
-smoke-test of all 5 save paths) and the friend-demo validation
-gate remain user-driven. **Two gates conceptually separated** so
-archaeology stays clean: (1) implementation close = code
-artifacts shipped + smoke-tested, (2) validation gate = wedge
-thesis confirmed via 10-min friend-demo per pass criteria. A
-friend-demo failure invalidates the wedge (product reopen, not
-implementation reopen) — keep the gates distinct in any
-post-demo retro.
+**Phase 6 scope (from Phase 5 close):** 2-step anchor onboarding
+(HOME, then SCHOOL/WORK toggle) + hint card (per D8 stripped-down
+B) + Apple/Google/Email auth UI (replacing Phase 5 의 dev-shim
+`ensureDevSession`). Phase 5 의 mid-phase decision — dev test-user
+via `auth.uid()` flow (not hardcoded literal) — was specifically
+to make Phase 6 의 auth UI 흡수가 frictionless 하게: 같은
+Supabase auth API, 같은 RLS 경계, UI 만 추가.
 
-**Phase 5 Track A progress (2026-05-11):** Steps 7d/7e/7f all
-PASS on Pixel_7 Android emulator. (a) Step 7d — Naver search:
-text-channel verified via `scripts/test-phase5-naver.mjs`, all
-items pass Korea bbox sanity, D5b empirical evidence
-("어니언 성수" → 127.0581051, 37.5446909) reproducible. Found
-quirk: English-Romanized queries return zero items (Naver index
-is Korean-first); SaveModal's ListEmptyComponent handles
-gracefully so no code change. (b) Step 7e — save flow: direct
-DB insert via `scripts/test-phase5-save.mjs` confirms
-signin + RLS + insert + select round-trip; relaunched app picks
-up the new pin via listPlaces() and renders it east of "성수"
-station label at the expected coords. (c) Step 7f — AUTO_RESOLVE:
-sent Naver Place URL via adb share intent, modal opened with
-URL chip, og-resolver fetched the page, Naver search ran on the
-returned og_title, top result displayed in big card, tap save →
-DB insert confirmed (cloud row matches inserted source_url).
-Full E2E path verified on emulator including og-resolver call.
-One real bug found + fixed mid-verification: synthetic id
-`naver:<address>` collided in FlatList keyExtractor when two
-results share an address (single building hosting multiple
-businesses) → suffix with response index for guaranteed
-uniqueness (commit ffb2b45). Sub-conditions 3-4 of the T-24h
-gate (real-device share-sheet display name + 5-path smoke test)
-intentionally deferred to Track B per the standing "iOS / real
-device gates with Track B" split. Sub-condition 5 (.env
-boot-time verification) ticked off — Naver substitution per D5b
-applied to the phase doc text. Mid-verification cross-phase
-issue added: Claude Code Read tool's 2000px image dimension
-limit blocks raw adb screencap; mitigation recipe (PowerShell
-System.Drawing on Windows host, magick on Unix) documented
-once, applies to all visual-verification workflows Phase 5
-onward. Three new verification artifacts in repo:
-`scripts/test-phase5-naver.mjs`, `scripts/test-phase5-save.mjs`,
-and the cross-phase issue entry. The friend-demo validation
-gate still remains user-driven and gates with Track B real-
-device readiness.
+**Inheritances from Phase 5 (Phase 6 work에서 의식할 것):**
+- Auth: `ensureDevSession` 패턴 (App.tsx) 을 실제 auth UI 로 자연
+  교체. RLS + `auth.uid()` 는 이미 production-ready.
+- EAS 환경 변수: Phase 5 close 직전 발견된 ".env 가 EAS 클라우드
+  빌드에 자동 안 들어감" 의 7개 `EXPO_PUBLIC_*` 변수 이미 EAS
+  dashboard 에 등록됨 (preview + production 양쪽). Phase 6 가 추가
+  env var (예: Apple Sign In Service ID) 도입 시 EAS 등록 잊지 말
+  것 — 검은 화면 silent crash 의 root cause 였음.
+- iOS 빌드 path: `eas.json` 의 `preview` profile 이 real-device
+  internal distribution 으로 수정됨 (`simulator: true` 제거). 새
+  빌드는 founder iPhone 의 등록된 UDID 로 ad-hoc install 가능.
+  Phase 6 dev cycle 중 시각 verification 은 real iPhone 사용
+  권장 (Windows Android emulator 의 text shader 실패 알려진
+  cross-phase issue).
+- Polish-tier debt: gesture decay iOS pinch-zoom (`@rnmapbox/maps`
+  API 미노출 — Phase 10), 도로 sparsity (D11 trigger pile, 사용자
+  결정으로 v1 무수정).
 
-Two mid-phase decisions worth recording while context is warm:
+**Phase 4 archaeology** (Path A consumption check + Re-verification
+2026-05-04) 은 Completed phases section 에 보존 — 이 narrative 의
+이전 버전이 그 detail 을 들고 있었음.
 
-- **Dev test-user authentication via `auth.uid()` flow (not a
-  hardcoded `user_id` literal).** Phase 5 doc allows hardcoding;
-  rejected because hardcoding bypasses RLS, which means every
-  query "works" in Phase 5 dev but the RLS validation surface
-  hasn't actually been exercised — Phase 6 inheritance would
-  surface latent RLS misconfigurations as query failures with
-  the producing context already cold. Cost: two `.env` vars
-  (`EXPO_PUBLIC_TEST_USER_EMAIL` / `_PASSWORD`) + one Supabase
-  dashboard test-user creation. Benefit: Phase 6 backend
-  integration starts with already-validated RLS, the same
-  `supabase.auth` flow Phase 6 will productionize, and zero
-  latent debt at the auth boundary. Implementation: tiny
-  `ensureDevSession()` helper at App.tsx boot, restores
-  persisted session first, falls back to test creds, falls
-  back to MOCK_PLACES on no-session for renderer-only dev.
-
-- **Phase doc sketches treated as guidance, not contract.**
-  Two reconciliations against locked sources surfaced during
-  Phase 5 implementation:
-  1. og-resolver field is `og_title` (Phase 3 actual), not
-     `data.title` (phase doc sketch). Fixed by reading the
-     actual Edge Function source at
-     `supabase/functions/og-resolver/index.ts` before writing
-     the bridge.
-  2. `KakaoPlaceResult` interface in phase doc has 12 fields
-     (full Kakao API response); `spec/data-shapes.ts` (locked)
-     defines a 7-field narrowed shape. Resolution: defined an
-     internal wider API-response type, narrowed to spec on
-     return — preserves the locked contract while consuming
-     the wider response.
-
-  Practice for future phases: when a phase doc references
-  upstream artifacts (locked specs, prior-phase exports,
-  Edge Functions, types), verify field names against the
-  locked source before treating doc snippets as code-ready.
-  This is a Phase-doc-specific variant of the Verification
-  Principles section's well-formedness vs. consumption
-  distinction — phase docs are well-formed (lint, render),
-  but their snippets need a consumption check against
-  current upstream reality before integration.
-
-The Phase 4 entry below is annotated **VERIFICATION INVALIDATED
-2026-05-03** + **✅ Re-verified 2026-05-04** — original gate only
-checked well-formedness, not consumption (does the rendered map
-match spec?). See "Verification Principles" section for the
-cross-phase generalization of this lesson, and the ✅ Re-verified
-block inside the Phase 4 entry for the 10-item check results table.
-
-A new cross-phase entry **"Android emulator GPU shader failure on
-Windows host"** was added 2026-05-04 documenting the dev-environment
-GPU limitation that blocks visual verification of Mapbox text labels
-on this Windows host (real device works fine). This is the second
-session that hit the issue, which met the promotion threshold.
-
-Two D10 marker-shape deviations from the locked spec were taken in
-Phase 4 — both deferred to Phase 7 (which already owns visited-state
-+ pin-interactions) because they need sprite-pipeline work that
-Phase 2 didn't deliver. See Cross-phase issues for the full deferral
-+ resolution path.
-
-Apple Sign In + Google Sign In configuration remains deferred to
-Phase 10 (existing entry — depends on Apple Developer Program
-enrollment + locked bundleIdentifier + EAS SHA-1 fingerprint).
+> _아래 이전 narrative 의 큰 덩어리는 archaeology 가치 있는 mid-
+> phase decisions + cross-phase reconciliation patterns 을 담고
+> 있으므로 Phase 6 narrative 시작점에서 잘려 Completed phases
+> Phase 5 entry 에 흡수됨. 그 결과 이 Current phase 섹션이 짧아
+> 짐 — Phase 6 work 가 진행되면서 이 자리가 다시 채워질 예정._
 
 ## Environment & setup decisions
 
@@ -252,6 +155,67 @@ required reopening a closed phase or invalidating a locked-spec assumption:
   empirical step means production code is gambling on docs that may
   be stale (2016 samples), contradictory (text vs. sample within
   the same doc), or wrong (community summaries).
+
+- **Phase 5 Track B (subagent analysis as input artifact)** — During
+  the expo-share-intent v5.1.1 empty-`targetName` debug, a subagent
+  was dispatched to research a custom Expo config plugin (Option C)
+  for overriding the share extension `CFBundleDisplayName`. Headline
+  agent finding: "no custom plugin needed — set `iosShareExtensionName:
+  '자국'`, the regex falls back to `'ShareExtension'` for the Xcode
+  target name while `CFBundleDisplayName` preserves the raw `'자국'`."
+  Coherent argument, sources cited (the exact plugin source files we
+  had already read together), 5-minute effort estimate. Problem: that
+  IS the broken state that triggered the bug. The agent misread the
+  conditional flow in `constants.js`:
+
+  ```js
+  if (!parameters?.iosShareExtensionName)
+      return shareExtensionName;     // fallback ONLY when falsy
+  return parameters.iosShareExtensionName.replace(/[^a-zA-Z0-9]/g, "");
+                                     // truthy path: sanitize, NO fallback
+  ```
+
+  `'자국'` is truthy → skips the fallback line → runs the regex →
+  returns `""`. No fallback after sanitization. The agent's "falls
+  back to default after sanitization" reading was wrong; empirical
+  evidence (the EAS validator throwing on that exact input) was the
+  refutation already in our hands. If accepted without verification,
+  this would have produced (a) a 5-minute "fix" that immediately
+  re-failed, (b) wasted EAS build minutes confirming the same error,
+  (c) potentially a "the regex is fine, must be something else"
+  misdiagnosis spiral that re-walks the bug.
+
+  Lesson generalized to **subagent output as input artifact**:
+  subagent analyses are themselves artifacts we consume to make
+  decisions. They pass well-formedness easily (they render, parse,
+  cite sources, sound confident — these are surface properties).
+  The consumption check is "applied to the actual code, does the
+  agent's recommendation produce the claimed outcome?" Before
+  acting on a subagent's analysis:
+
+  1. Cross-check the agent's reading of any specific code/spec/API
+     against the primary source ourselves — read the actual file,
+     not the agent's quote of it.
+  2. When the agent recommends a fix that contradicts the original
+     symptom evidence, the contradiction IS the red flag — the
+     agent likely walked the same wrong path you would have. Re-verify
+     the chain of reasoning; don't override the symptom.
+  3. Effort estimates from possibly-wrong analysis inherit the
+     analysis error. Treat "5 minutes, trivial" as plausibility
+     ceiling not lower bound when the analysis itself hasn't been
+     re-verified.
+  4. The agent's tone of confidence is information-free. Tightly
+     argued + sources cited + low effort estimate is the shape of
+     a *good* answer AND a *bad* answer. Verify against the primary
+     source either way.
+
+  This is well-formedness vs. consumption applied to information-
+  gathering: subagent outputs look authoritative (passes well-
+  formedness), but the decisions they enable depend on the analysis
+  being correct (consumption check). Skipping the verification step
+  means downstream code is gambling on agent reasoning that may be
+  partially right (cited the right files, found the right function)
+  while wrong on the load-bearing detail (misread the conditional).
 
 ### How to apply (mandatory for all future phase verification gates)
 
@@ -995,9 +959,166 @@ prevents the former, the exemption clause prevents the latter.
       additions captured in the new D10-deviations cross-phase
       issue below.
 
+- [x] Phase 5: Save-flow MVP — VALIDATION GATE
+  - Completed: 2026-05-13 (implementation 2026-05-06; Track A 2026-05-11;
+    Track B EAS iOS build 2026-05-11; T-24h gate close 2026-05-12;
+    friend-demo validation gate PASS 2026-05-13)
+  - Duration: ~7 working days from Phase 5 kickoff (2026-05-06) to
+    validation-gate close (2026-05-13). Schedule split: 1 day code
+    implementation + 5 days operational-wait + cross-phase gates
+    (Apple Dev enrollment activation, Hangul plugin bug, EAS profile
+    misconfig, env-var EAS injection, iOS Developer Mode toggle,
+    1-hour security delay, dlx + balanced-match interaction) +
+    1 day friend-demo orchestration.
+  - **Validation gate result: 5/5 paths PASS, wedge thesis CONFIRMED.**
+    Formal Phase 5 doc protocol followed (10-min hand-over-phone,
+    founder silent, 4 post-demo questions).
+    - Path 1 (AUTO_RESOLVE / 네이버 지도 → 공유 → 자국) ✅
+    - Path 2 (MANUAL_RESOLVE / 인스타 → 공유 → 자국 → 검색) ✅
+    - Path 3 (인스타 Copy Link → 자국 + 버튼 → clipboard auto-detect) ✅
+    - Path 4 (AUTO_RESOLVE 정확도) ✅ with minor ambiguity accepted
+      (lever framework noted but no fix — controllable: og-resolver
+      query / selection / disambiguation-degrade; not controllable:
+      Naver Local Search ranking + chain collisions + generic
+      og_titles)
+    - Path 5 (force-quit + 재실행 핀 persistence) ✅
+  - Polish-tier qualitative feedback (NOT blockers, recorded for
+    Phase 10 + D11 trigger pile):
+    1. Zoom/pan gesture 미끄러짐 — Mapbox 기본 inertia/decay 가
+       한국 사용자에 익숙한 네이버/카카오 short-snap decay 와
+       categorical-different feel. **Partial fix applied this phase**:
+       `src/map/PersonalMap.tsx` `gestureSettings` prop 에
+       `panDecelerationFactor: 0` + `pinchZoomDecelerationEnabled:
+       false` + `rotateDecelerationEnabled: false` 추가. iOS
+       pinch-zoom 자체 decay 는 `@rnmapbox/maps` API 가 안 노출 —
+       완전 fix 불가. pan + Android pinch + rotate 만 잡힘.
+    2. 도로 sparsity (안암역 예시) — mapbox-streets-v8 의 KR OSM
+       데이터 한계. 사용자 결정 2026-05-13: 수정 없이 그대로 두기
+       (v1 wedge 가 navigation 이 아니라 personal pin curation
+       이므로 sparsity 가 wedge blocker 아님). 둘 다 D11 의 MapTiler
+       migration trigger condition 의 OR-pile 에 추가됨.
+  - Verification gate (all passed):
+    - `pnpm typecheck` ✓ (strict + extra-strict 클린)
+    - `pnpm lint` ✓ (180 prettier auto-fixes 적용 후 클린)
+    - Track A (Android Pixel_7 emulator):
+      - 7d Naver search via `scripts/test-phase5-naver.mjs` — D5b
+        empirical case ("어니언 성수" → 127.0581051) 재현 가능;
+        English-Romanized query는 0건이지만 `ListEmptyComponent`
+        graceful
+      - 7e save flow via `scripts/test-phase5-save.mjs` — direct DB
+        insert + emulator 재실행 후 listPlaces() 가 새 핀 반영
+      - 7f AUTO_RESOLVE E2E via adb share intent — 네이버 Place
+        URL → og-resolver → Naver search → save card → DB insert
+        모두 작동
+    - Track B (iOS EAS build):
+      - Build URL `c961d9e5-df97-467a-b765-713e74c024f3` — preview
+        profile, real-device internal distribution, friend UDID
+        포함된 ad-hoc provisioning profile 자동 생성, ~6분 cloud
+        Mac time
+      - Install on founder's iPhone (`00008130-...`) ✓ — Developer
+        Mode 1회 enable 필요했음 (Individual Apple Dev account의
+        iOS 16+ 표준 절차)
+    - T-24h gate (all 5 sub-conds met):
+      1. Brand name LOCKED 2026-05-04 (자국)
+      2. app.config.ts apply + bundleIdentifier `com.jaguk.app` 2026-05-04
+      3. Real-device share-sheet display name 확인 2026-05-12
+      4. 5-path Task #9 smoke test 본인 iPhone 에서 2026-05-12 +
+         정식 demo 에서 5/5 PASS 2026-05-13
+      5. `.env` boot-time verification (2026-05-11 Track A)
+  - Mid-phase decisions (조금 길지만 archaeology 필수):
+    - **D5 reopen → D5b (Naver Open API substitution for v1)** —
+      Kakao Developer Console 가 카카오맵 활성화에 사업자 등록증
+      을 요구하는 access constraint 발견 (2026-05-07). v1 의 founder
+      는 사업자 등록 못 함 → Naver Open API Local Search 로
+      transitional fallback. 풀 rationale + 마이그레이션 path 는
+      DESIGN.md D5b. Phase 10 evaluation gate 에서 재평가.
+    - **eas.json `preview` profile 의 `simulator: true` 오설정 →
+      real-device 빌드 불가 였음** — Phase 5 close 직전에 발견
+      (2026-05-13). 이전 2026-05-11 EAS 빌드도 simulator-only 였음
+      — PROJECT_STATE.md 의 어제 (2026-05-12) "real iPhone 5-path
+      smoke test" 기록은 archaeologically 의문 (simulator 였을
+      가능성 높음). 수정: `simulator: true` 라인 제거 → 다음 빌드
+      부터 real-device .ipa.
+    - **EAS 클라우드 빌드는 `.env` 자동 안 봄** — `.gitignore` 가
+      `.env` 를 제외하므로 EAS Build 체크아웃에 없음. 검은 화면
+      증상 (`MAPBOX_TOKEN undefined` 에서 throw 가 production 빌드
+      에선 silent crash) 으로 발현됨. EAS 대시보드에서 `EXPO_PUBLIC_*`
+      변수 7개 등록 (preview + production 환경 양쪽).
+    - **Path 4 정확도 lever framework** — controllable: og-resolver
+      query 구성, results selection logic, disambiguation degrade to
+      MANUAL. Not controllable: Naver Local Search ranking, chain
+      collisions, generic og_titles. v1 에선 무수정 수용.
+    - **Phase doc 의 sketches 는 contract 아닌 guidance** — 2번
+      reconciled: og-resolver 필드는 `og_title` (Phase 3 실제) 이지
+      `data.title` (phase doc sketch) 아님; KakaoPlaceResult interface
+      가 phase doc 에선 12 fields 인데 spec/data-shapes.ts (잠금) 은
+      7 fields narrowed shape. 둘 다 locked source 우선.
+    - **Dev test-user 인증 via `auth.uid()` flow** — phase doc 은
+      hardcoded `user_id` literal 허용했지만 RLS bypass 가 Phase 6
+      에서 latent debt 으로 surface 할 위험. 두 env var
+      (`EXPO_PUBLIC_TEST_USER_EMAIL` / `_PASSWORD`) + Supabase
+      dashboard test-user 생성으로 정식 sign-in flow 적용.
+    - **Gesture decay partial fix at Phase 5 close** — 친구-demo
+      qualitative feedback "미끄럽다" 에 대응. iOS pinch-zoom decay
+      자체는 미해결 (`@rnmapbox/maps` API 미노출). 한계 명시.
+  - Files created (key paths):
+    - `src/save-flow/url-classifier.ts` + `src/save-flow/url-classifier.test.ts`
+      — pure URL → strategy router. AUTO_RESOLVE / MANUAL_RESOLVE
+      + domain_kind + place_id_hint.
+    - `src/save-flow/SaveModal.tsx` — RN modal UI, Phase 5 minimal
+      polish (Phase 8 가 Toss-style polish 담당).
+    - `src/naver/client.ts` — D5b. Naver Open API Local Search 클라
+      이언트. mapx/mapy ÷ 1e7 좌표 변환 + Korea bbox sanity assert +
+      `<b>` 태그 strip. Result<T> tagged union 보존.
+    - `src/kakao/client.ts` — ARCHIVED (D5b reverse-path 용 보존,
+      삭제 X — 사업자 등록 가능해질 때 복구 path).
+    - `App.tsx` — share-intent + clipboard + ensureDevSession +
+      mapHandleRef + SaveModal wiring. Phase 4 의 mock-only App.tsx
+      를 풀 production entry 로 확장.
+    - `scripts/test-phase5-naver.mjs` + `scripts/test-phase5-save.mjs`
+      — Track A verification scripts.
+  - Files modified (key paths):
+    - `src/map/PersonalMap.tsx` — `PersonalMapHandle` imperative
+      handle 추가 (`flyTo`), `forwardRef` 변환, `searchResults`
+      ShapeSource 추가, `gestureSettings` 적용 (2026-05-13 polish).
+    - `app.config.ts` — `expo-share-intent` plugin entry +
+      `iosShareExtensionName: '자국'` 제거 (Hangul sanitization 버그
+      회피, Option A — Option C custom plugin 보류) + name/
+      bundleIdentifier 브랜드 lock 적용.
+    - `eas.json` — `preview.ios.simulator: true` 제거 (real-device
+      빌드 가능하게).
+    - `.env.example` — Naver Client ID/Secret + test-user
+      credentials env var documentation 확장.
+    - `package.json` + `pnpm-lock.yaml` — `expo-share-intent@~5.1.1`
+      + `expo-clipboard` 추가 (507 transitive deps surge — balanced-
+      match audit trigger fired).
+  - Cross-phase drift detected:
+    - 6 new cross-phase issues added during Phase 5: D5b POI
+      provider amendment / expo-share-intent v5.1.1 Hangul plugin
+      bug / pnpm dlx eas-cli pnpm.overrides non-inheritance /
+      Claude Code Read 2000px image limit / v8 Korean tile data 구
+      누락 (sibling to D11) / Android share-sheet host-filter
+      granularity deferred. D11 trigger condition extended to
+      4-item OR-pile (subway / 구 / zoom-feel / road-sparsity).
+    - 1 new Verification Principles Case added (Case #4: subagent
+      analysis as input artifact — 잘 형식화된 agent output 이
+      consumption check 통과 의미 아님).
+  - Recommended Phase 6+ doc tweaks:
+    - Phase 6 doc: dev-test-user 패턴 (`ensureDevSession` in
+      App.tsx) 을 Phase 6 의 실제 auth UI 로 자연 흡수. EAS env
+      var 설정 패턴 (this phase 에서 발견) 을 Phase 6 + Phase 10
+      에서 onboarding 화면의 추가 env 추가될 때마다 재적용.
+    - Phase 7 doc: 시각 verification 은 real iPhone 사용 (Windows
+      Android emulator GPU 가 text shader 실패함 — cross-phase
+      issue 참조). Phase 5 close 시 founder iPhone 에 ad-hoc
+      build 깔려있으므로 Phase 7 dev cycle 에 EAS 빌드 + 설치
+      반복 사용 가능.
+    - Phase 10 doc: gesture decay 완전 fix (iOS pinch-zoom decay)
+      를 Phase 10 polish 항목으로 추가. 대안 — native gesture
+      wrapper / 다른 SDK 평가.
+
 ## Pending phases
 
-- [ ] Phase 5: Save-flow MVP — VALIDATION GATE (share-ext + URL classifier + Kakao auto-resolve)
 - [ ] Phase 6: Onboarding + auth flow (2-step anchor, hint card)
 - [ ] Phase 7: Pin interactions + states (tap-to-expand, long-press menu, visited, color filter)
 - [ ] Phase 8: Pin detail popover (bottom sheet, OG card, edit fields)
@@ -1250,7 +1371,9 @@ config-array, not through the React plugin's own deps. Tracking
   `glob@10+`. Likely lands in RN 0.82 or later — track at
   [react-native release notes](https://github.com/facebook/react-native/releases).
 
-**Audit command** (run before any major dep bump or quarterly):
+**Audit command** (run before any major dep bump or quarterly OR
+**any time a single phase adds 100+ transitive deps** — see Phase 5
+empirical case below):
 
 ```bash
 pnpm why brace-expansion@1.1 2>/dev/null | head -3
@@ -1260,7 +1383,37 @@ pnpm why brace-expansion@1.1 2>/dev/null | head -3
 #   3. pnpm lint && pnpm typecheck must still pass
 ```
 
-**Last verified active:** 2026-04-27 (both chains live; override required).
+**Phase 5 empirical trigger (2026-05-11):** Adding `expo-share-intent`
++ deps brought 507 new packages (visible in `Packages: +507` install
+log). One of those new deps consumes `balanced-match` via the v4
+API (`{balanced}` named export); our override pins v1 (callable
+function). The mismatch only surfaces under `pnpm dlx eas-cli`
+because dlx creates an isolated install that does **not** inherit
+the project's `pnpm.overrides` block. Result: `@expo/fingerprint`
+in dlx's isolated install gets the wrong shape of `balanced-match`
+→ `(0 , balanced_match_1.balanced) is not a function` → EAS build
+submission aborts at "Compute project fingerprint" step before
+upload. Generalized trigger: **any phase that adds >100 transitive
+deps invalidates the prior audit window**; re-run the audit command
+plus the dlx-aware variant below.
+
+**Workaround for the pnpm dlx + fingerprint specific case** (NOT a
+full fix — see dedicated "pnpm dlx eas-cli does not inherit
+pnpm.overrides" cross-phase issue below for the long-term resolution
+branches):
+
+```bash
+EAS_SKIP_AUTO_FINGERPRINT=1 pnpm dlx eas-cli build --platform ios ...
+# Skips the fingerprint step entirely; build proceeds. EAS's
+# fingerprint is an optimization (rebuild cache key); skipping
+# only costs ~5min of "could have been incrementally rebuilt"
+# per build.
+```
+
+**Last verified active:** 2026-05-11 (both chains still live;
+plus new pnpm dlx + 507-pkg expansion trigger added). Next audit:
+after any major dep bump, or quarterly, or after any single phase
+adding 100+ transitive deps.
 
 ### Phase 10 CORS tightening (R2 `mymap-assets` bucket)
 
@@ -1468,11 +1621,39 @@ expressions, transfer-differentiation filters, and italic park labels
 all Just Work against MapTiler tiles without further patches.
 
 Trigger condition for migration: "v1 wedge validation passes (per
-DESIGN.md success criteria) AND subway-context degradation cited as
-friction point in user feedback." Do NOT trigger on "MapLibre is
-shinier" — the migration is non-trivial (2-3 working days + new
-licensing surface + new tile-quota management). Worth doing only
-when product-validation evidence justifies it.
+DESIGN.md success criteria) AND ANY of the following empirical-
+friction signals surfaces in user feedback":
+1. **Subway-context degradation** — single-grey subway lines, no
+   transfer-station differentiation cited as orientation friction.
+2. **구 (district) label absence** — see sibling cross-phase entry
+   "v8 Korean tile data 구 누락" for full evidence; users asking
+   "어느 구야?" or hitting 동명 collisions (신사동 강남 vs 은평).
+3. **Zoom/pan gesture 미끄러짐** — added 2026-05-13 post-friend-demo.
+   Korean users used to 네이버/카카오 맵 의 짧은 스냅 decay 가
+   Mapbox 의 부드러운 inertia 를 categorical-different feel 로 인식.
+   Phase 5 close 에서 `gestureSettings.panDecelerationFactor: 0` +
+   `pinchZoomDecelerationEnabled: false` 부분 적용으로 일부 완화 됐
+   지만 iOS pinch-zoom decay 자체는 `@rnmapbox/maps` API 미노출.
+   MapLibre 이행 후에도 동일 OSM gesture engine 이라 본질적
+   호전 미보장 — 다만 더 정밀한 gesture customization layer
+   접근 가능해질 수 있음.
+4. **도로 sparsity** — 추가 2026-05-13 post-friend-demo. v8 의 KR
+   OSM 데이터 한계로 안암역 같은 mid-density 동네에서 도로 가
+   드물게 렌더됨. 친구 in-person 언급. MapTiler 이행은 같은 OSM
+   베이스라 본질 해결 안 됨 — Korean 매핑 데이터 자체가 네이버/
+   카카오 proprietary (D5b licensing 으로 우리 불가). 이 신호는
+   trigger pile 에 들어가지만 fundamentally 해결은 OSM 한국
+   contribution / 데이터 라이센스 환경 변화 / 자체 측량 중 하나.
+
+OR-조건으로 묶인 이유: 어느 하나라도 카테고리-perception 손상
+신호가 누적되면, MapTiler 이행으로 (1)+(2) 즉시 해결됨 — (3)+(4)
+는 부분 해결 또는 trigger condition 자체의 다른 후속 작업으로
+이어짐. 단독 신호로는 v1 blocker 아님 (모두 polish-tier).
+
+Do NOT trigger on "MapLibre is shinier" — the migration is non-
+trivial (2-3 working days + new licensing surface + new tile-quota
+management). Worth doing only when product-validation evidence
+justifies it.
 
 **What did NOT change (Path A scope):**
 
@@ -1484,6 +1665,50 @@ when product-validation evidence justifies it.
   styleJSON as opaque string; spec patches alone fix rendering.
 - spec/data-shapes.ts, spec/tokens.json, sprite SVGs — all
   unchanged. Path A touches only the two style JSONs + spec/CHANGELOG.
+
+### v8 Korean tile data 구 누락 (sibling to D11)
+
+**Observation:** mapbox-streets-v8 한국어 라벨에서 구 (district)
+단위 결측. KR 행정 위계는 시 → 구 → 동 의 3-level 이지만 v8 KR
+타일은 동 (성수동, 안국동) 과 시 (서울특별시) 만 라벨로 노출하고
+구 (성동구, 종로구) level 은 어떤 zoom band 에서도 보이지 않는다.
+
+**Phase 4/5 empirical evidence:**
+
+- Phase 4 (2026-05-03) 시청 카메라 가시 라벨 목록: 통인동 / 사간동
+  / 안국동 / 종로1가 / 무교동 / 다동 / 삼각동 + 서울 도심 +
+  서울특별시. 종로구 / 중구 라벨 한 개도 없음. 캡처 파일
+  `build/phase4-render.png` (PROJECT_STATE Phase 4 verification
+  gate 항목 참조).
+- Phase 5 Track A (2026-05-11) 성수동 mock-pin context: Step 7e
+  log 가 저장 핀을 "'성수' station label 동쪽" 으로 기술 — 한 단계
+  위인 성동구 orientation cue 는 z10-z15 전 구간에서 부재. 사용자가
+  "이게 어느 구야?" 질문에 답을 못 함.
+
+**영향:** KR 사용자는 일상 대화에서 위치를 "성동구 성수동", "강남구
+역삼동" 처럼 구+동 jointly 로 부른다. 지도가 동만 보여주면 mental-
+map 매핑이 한 단계 끊긴다. 특히 동명 충돌 케이스 — 가장 자주
+나오는 사례가 신사동 (강남구 vs 은평구) — 에서는 friend-demo 중
+"어느 신사동이야?" 같은 질문이 나올 수 있는 실제 friction mode.
+D11 subway-context degradation 과 동일 카테고리: v8 KR 데이터 구조
+한계, cosmetic-but-load-bearing for spatial orientation.
+
+**Trigger contribution:** D11 의 MapTiler migration trigger
+condition 은 기존에 "subway-context degradation cited as friction
+point" 단독이었음. 이제 "구 label absence cited as orientation
+friction point" 가 누적되어 OR-조건으로 묶임. 둘 중 어느 하나라도
+wedge validation / 베타에서 사용자 언급으로 나오면 post-PMF
+MapLibre + MapTiler 이행을 앞당김. 단독으로는 v1 blocker 아님 (둘
+다 cosmetic).
+
+**Resolution path:** D11 와 동일 — MapLibre + MapTiler post-PMF
+migration. OpenMapTiles 스키마는 `place=suburb` admin-level 을
+KR 데이터에 포함하고 있어 구 라벨이 자연스럽게 렌더된다. v1 에서
+client-side 합성 short-circuit (reverse-geocode → 구 추론 → custom
+overlay layer) 은 (a) Kakao quota 추가 비용, (b) brand color
+discipline 위반 risk (구 라벨 색상 결정이 또 다른 D 시리즈 잠금
+대상), (c) base map 위에 자체 텍스트 레이어 그리는 복잡도 때문에
+보류.
 
 ### D10 marker-shape deviations deferred to Phase 7
 
@@ -1950,9 +2175,157 @@ the 900-width tighter resize per above.
 **Owner:** anyone doing visual verification on this host. The recipe
 lives here so the next phase session doesn't re-derive it.
 
+### expo-share-intent v5.1.1 — Hangul brand `name` breaks `iosShareExtensionName`
+
+The expo-share-intent v5.1.1 config plugin sanitizes `iosShareExtensionName`
+via `/[^a-zA-Z0-9]/g` to derive the Xcode target name (a real Xcode
+constraint — target names must be ASCII identifiers). The sanitization
+has **no fallback** when it yields empty: pure-Hangul input like
+`'자국'` strips to `""`, propagates as `extra.eas.build.experimental.ios.appExtensions[].targetName: ""`,
+and EAS Build's Joi schema validator throws
+`"targetName" is not allowed to be empty` before the upload step
+even runs.
+
+Source: `node_modules/expo-share-intent/plugin/build/ios/constants.js`
+lines 10-14:
+
+```js
+const getShareExtensionName = (parameters) => {
+    if (!parameters?.iosShareExtensionName)
+        return shareExtensionName;     // fallback ONLY when falsy
+    return parameters.iosShareExtensionName.replace(/[^a-zA-Z0-9]/g, "");
+                                       // truthy path: sanitize, NO fallback
+};
+```
+
+Design conflation: the **same parameter** is used for both the
+Xcode target name (`writeIosShareExtensionFiles.js` filenames +
+`withIosShareExtensionXcodeTarget.js` `pbxProject.addTarget`) AND
+the share-sheet picker label (`CFBundleDisplayName` in
+`writeIosShareExtensionFiles.js` line 72). The Xcode-target use
+case demands ASCII; the picker-label use case can be any string.
+v5.1.1 resolves the conflict by sanitizing for one role while
+preserving raw for the other — but with no fallback, pure-non-ASCII
+input fails the first role entirely.
+
+**Phase 5 resolution (Option A, applied 2026-05-11):** remove the
+`iosShareExtensionName` entry from `app.config.ts` plugin block.
+Effects:
+- Xcode target name = default `"ShareExtension"` (line 4 of
+  `constants.js`)
+- `CFBundleDisplayName` = `\`${config.name} - Share Extension\``
+  fallback (line 72 of `writeIosShareExtensionFiles.js`) →
+  `"자국 - Share Extension"` on the share sheet (mixed-language)
+- EAS validator passes, build succeeds (verified via
+  builds/6e6dd5ce-f4bb-48f1-b62a-985d1983dc33, finished 5m 45s)
+
+**UX trade-off**: picker label is now `"자국 - Share Extension"`
+(English suffix), not the clean brand `"자국"`. For friend-demo
+on Phase 5 the icon is the primary recognition signal and the
+mixed label is acceptable; full UX win requires Option C below.
+
+**Option C (deferred — friend-demo evidence-gated):** local Expo
+config plugin (`plugins/with-share-extension-display-name.ts`,
+~15 lines TS using `withDangerousMod`) that runs AFTER
+expo-share-intent's plugin, reads
+`ios/ShareExtension/ShareExtension-Info.plist`, sets
+`CFBundleDisplayName: '자국'`, writes back. Estimated effort:
+1-2 hours (NOT the "5 minutes" a confidently-wrong subagent
+analysis suggested — see Verification Principles Case #4).
+Trigger to actually do it: friend-demo data showing the mixed-
+language label causes hesitation in the share-sheet picker
+(empirical UX evidence). Don't pre-spend the 1-2 hours on
+speculation.
+
+**v6 / SDK 55 outlook:** if upstream `achorein/expo-share-intent`
+adds a separate `iosShareExtensionDisplayName` param (or fixes
+`getShareExtensionName()` to fall back when sanitization yields
+empty), Option A reverses naturally — drop the workaround during
+the SDK 55 upgrade pass. Until then, do NOT re-add
+`iosShareExtensionName: '자국'`: the v5.1.1 bug is sticky and
+the test surface (an actual EAS build) is expensive.
+
+**Files affected (current state):**
+- `app.config.ts` lines 67-87 — `iosShareExtensionName` removed,
+  inline comment explains why (so future-self doesn't re-add)
+- Cross-phase `Android share-sheet host-filter granularity (Phase 5 deferral)`
+  remains independent — different sub-issue of the same plugin
+
+### `pnpm dlx eas-cli` does not inherit project `pnpm.overrides`
+
+Discovered 2026-05-11 during Phase 5 Track B EAS iOS build.
+`pnpm dlx eas-cli build ...` creates an **isolated install of
+eas-cli + its full transitive tree** in a temporary store, which
+does NOT respect the consuming project's `pnpm.overrides` block
+in package.json. Result: any `pnpm.overrides`-pinned package
+(currently `balanced-match: ^1.0.2` — see the balanced-match
+cross-phase entry above) is bypassed inside the dlx install.
+
+**Symptom**: `(0 , balanced_match_1.balanced) is not a function`
+during EAS Build's local "Compute project fingerprint" step
+(`@expo/fingerprint`). Build submission aborts before upload,
+exit code 1. The error message text is identical to the ESLint
+chain failure that originally motivated the override — same root
+cause (version mismatch), different consumer (`@expo/fingerprint`
+inside the dlx-isolated install, not ESLint inside the project
+install). The 507 new transitive deps from Phase 5's
+expo-share-intent install made some new consumer reach for
+`balanced-match` v4 API; the dlx install gets v4 (no override
+applied) which mismatches the consumer expecting... actually
+hard to tell without deeper bisection which version mismatches
+which consumer, but the symptom is consistent.
+
+**Workaround (current — used during Phase 5 Track B build):**
+```bash
+EAS_SKIP_AUTO_FINGERPRINT=1 pnpm dlx eas-cli build --platform ios ...
+```
+The fingerprint is an EAS optimization (computes a hash of the
+project to skip rebuilds when nothing relevant changed). Skipping
+it costs ~5 min of "could have been incrementally rebuilt" per
+build; given current build cadence (1-2 iOS builds per phase),
+the cost is negligible.
+
+**Long-term resolution branches (decision deferred to Phase 6 or
+Phase 10):**
+
+(a) **Skip fingerprint permanently** — add `EAS_SKIP_AUTO_FINGERPRINT=1`
+to the `cli.appVersionSource` config in `eas.json` (or a top-level
+EAS env config). Cost: ~5 min per build. Benefit: zero new
+devDeps, dlx workflow preserved.
+
+(b) **Re-add eas-cli to devDependencies** — `pnpm add -D eas-cli`,
+switch from `pnpm dlx eas-cli` to `pnpm exec eas-cli` everywhere.
+A project-local install DOES inherit `pnpm.overrides`. Cost:
+reverses the 2026-05-03 `expo doctor`-driven removal of eas-cli
+from devDeps; introduces version-drift surface (eas-cli ships
+weekly, our package.json would lag). Benefit: fingerprint works,
+all eas-cli flows non-isolated.
+
+(c) **Patch upstream balanced-match consumers** — find which
+specific package inside `@expo/fingerprint` requires v4 API and
+patch via patch-package, OR upstream PR. High effort, high
+specificity, may need re-doing as deps churn.
+
+**Trigger to decide between (a)/(b)/(c)**: Phase 6 or Phase 10
+DX session. Until then, (a) is the in-effect default by virtue
+of the env var workaround in active use.
+
+**Audit interplay**: this entry compounds with the balanced-match
+audit trigger ("any phase adding 100+ transitive deps"). When
+the next audit fires, also verify whether `EAS_SKIP_AUTO_FINGERPRINT=1`
+is still needed or whether the dep churn has resolved the
+specific consumer mismatch.
+
 ## Active blockers
 
-(empty — Phase 5 ready to start)
+**(none — Phase 5 fully closed 2026-05-13; Phase 6 ready to start.)**
+
+Phase 5 validation gate result is archived in the Completed phases
+section (see "Phase 5: Save-flow MVP — VALIDATION GATE") and in the
+header `Update 2026-05-13 (later same day)` entry. Phase 6 entry
+gate condition (friend-demo PASS per strict-gate posture) is met —
+the parallel-implementation contingency is moot; Phase 6 can start
+on the strict-gate condition without retroactive-invalidation risk.
 
 Resolution record for the two gates that previously blocked Phase 5
 lives in:

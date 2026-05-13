@@ -66,10 +66,17 @@ const config: ExpoConfig = {
     [
       'expo-share-intent',
       {
-        // Display name shown in iOS share-sheet picker. Brand-locked 2026-05-04
-        // — see PROJECT_STATE.md "Open decisions". Android picker reads the
-        // app's `name` (also `자국`) automatically from this same config.
-        iosShareExtensionName: '자국',
+        // iosShareExtensionName intentionally OMITTED. v5.1.1's
+        // getShareExtensionName() sanitizes via /[^a-zA-Z0-9]/g for the Xcode
+        // target name, so Hangul '자국' strips to '' → EAS validation throws
+        // `"targetName" is not allowed to be empty`. With omission:
+        //   - Xcode target name = default 'ShareExtension' (ASCII-safe)
+        //   - CFBundleDisplayName = `${config.name} - Share Extension`
+        //     = '자국 - Share Extension' (mixed-language fallback)
+        // The mixed-language label is a UX cost for friend-demo (picker label
+        // recognition); will be overridden to clean '자국' via a local config
+        // plugin (Option C) before the demo. See PROJECT_STATE.md
+        // cross-phase issue: "expo-share-intent v5.1.1 Hangul sanitization".
         // Accept web URLs (Naver/Kakao Place links) and plain text (which
         // covers Instagram/Threads/blog URLs that ship as text/plain).
         iosActivationRules: {

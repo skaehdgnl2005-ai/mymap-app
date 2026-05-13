@@ -314,7 +314,10 @@ total onboarding. No NLP, no permissions during onboarding.
 (C) Warm gray + electric blue.
 
 **Decision:** **B — cool off-white base + deep indigo brand**, with the base
-warm-shifted to `#F5F4F0` (eliminates clinical feel without losing editorial
+warm-shifted to `#FAFAFA` (originally `#F5F4F0`, lightened 2026-05-11 after
+Phase 5 Track A founder smoke-test: cream felt aged against Toss/Apple-
+style modern app expectations. `#FAFAFA` retains slight warmth but reads
+as fundamentally white — eliminates clinical feel without losing editorial
 register). Brand color `#2D2A6B` claims unoccupied territory in Korean app
 landscape (none of 당근/토스/네이버/카카오/무신사/오늘의집 sit there). The
 risk taxonomy was the deciding frame: "tunable risks (palette feel) are
@@ -370,9 +373,24 @@ Mapbox-hosted). Style JSON references local URL.
 
 ### D12 — Zoom-level visibility rules
 
-Anchors visible at zoom ≥ 12. Saved pins individual at zoom ≥ 14
-(clusters render at zoom 12-13 at 18px @ 80% opacity; full 24px at zoom
-14+). Subway hub lines (1, 2, 3, 4, 9) at zoom 13. All subway lines +
+Anchors visible at zoom ≥ 12. Saved pins individual at zoom ≥ 10
+(cluster takes precedence when proximity threshold is met; isolated
+saved pins — those not clustered with any neighbor — render
+individually at z ≥ 10 instead of being hidden). Clusters render at
+zoom 12-13 at 18px @ 80% opacity; full 24px at zoom 14+.
+**Revised from initial "saved pins z ≥ 14" lock 2026-05-11 (two-step
+refinement) after Phase 5 Track A founder smoke-test surfaced two
+empirical dead zones: (1) at low pin density (< cluster threshold),
+z 12-13 originally showed nothing because clusters require multiple
+proximity points to form and individual pins were hidden; (2) after
+lowering individual pins to z ≥ 12, real-device smoke-test still
+showed singleton pins disappearing during the z 10-12 zoom-out
+transition (cluster maxZoom is z 13, so at z ~11.5 the cluster
+mechanism aggregated some but not all pins, and the un-aggregated
+singleton fell below the z ≥ 12 threshold). Final z ≥ 10 covers
+all reasonable Korea-level navigation zooms while still hiding
+pins at world-view (z < 10).**
+Subway hub lines (1, 2, 3, 4, 9) at zoom 13. All subway lines +
 station dots at zoom 14, with **transfer stations distinguished** (larger
 dot + outline, name appears one zoom earlier than regular stations — Korean
 users navigate by 환승역 as spatial anchors). Brand color **never** on

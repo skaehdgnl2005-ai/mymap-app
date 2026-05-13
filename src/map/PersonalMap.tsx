@@ -26,7 +26,7 @@
 //     sprite atlas — so it's hidden on visited pins until the sprite
 //     pipeline produces the indigo variants.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Appearance, type ColorSchemeName } from 'react-native';
 import Mapbox, { Camera, CircleLayer, MapView, ShapeSource, SymbolLayer } from '@rnmapbox/maps';
 
@@ -57,7 +57,7 @@ const PIN_LAYER_IDS = ['saved-pins-icon', 'anchors-icon'] as const;
 // expressions stay literal — Mapbox compiles them once on style load.
 const COLORS = {
   light: {
-    surface_base: '#F5F4F0',
+    surface_base: '#FAFAFA',
     brand_indigo: '#2D2A6B',
     brand_indigo_soft: '#6B68A8',
     brand_indigo_dark: '#1A1850',
@@ -83,7 +83,14 @@ interface Props {
   onSearchResultTap?: (resultId: string) => void;
 }
 
-export const PersonalMap: React.FC<Props> = ({
+// Imperative handle exposed via forwardRef. Used by App.tsx to fly the
+// camera to a freshly-saved pin so the user can visually confirm the
+// save (D7 polish surfaced during Phase 5 Track A founder smoke-test).
+export interface PersonalMapHandle {
+  flyTo: (coords: [number, number], opts?: { zoom?: number; duration?: number }) => void;
+}
+
+export const PersonalMap = forwardRef<PersonalMapHandle, Props>(({
   savedPlaces,
   searchResults,
   initialCenter = SEOUL_CENTER,
@@ -92,7 +99,7 @@ export const PersonalMap: React.FC<Props> = ({
   onPinLongPress,
   onClusterTap,
   onSearchResultTap,
-}) => {
+}, ref) => {
   // ----- Light/dark style switching (D8 lock: two separate JSONs) --------
   const [colorScheme, setColorScheme] = useState<ColorSchemeName>(Appearance.getColorScheme());
   useEffect(() => {
@@ -120,6 +127,23 @@ export const PersonalMap: React.FC<Props> = ({
 
   // ----- Long-press → query rendered features for pin id -----------------
   const mapRef = useRef<MapView>(null);
+  const cameraRef = useRef<Camera>(null);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      flyTo: (coords, opts) => {
+        cameraRef.current?.setCamera({
+          centerCoordinate: coords,
+          zoomLevel: opts?.zoom ?? 16,
+          animationDuration: opts?.duration ?? 800,
+          animationMode: 'flyTo',
+        });
+      },
+    }),
+    [],
+  );
+
   const handleLongPress = async (
     feature: GeoJSON.Feature<GeoJSON.Point, { screenPointX: number; screenPointY: number }>,
   ) => {
@@ -144,9 +168,15 @@ export const PersonalMap: React.FC<Props> = ({
       compassEnabled={false}
       pitchEnabled={false}
       rotateEnabled={false}
+      gestureSettings={{
+        panDecelerationFactor: 0,
+        pinchZoomDecelerationEnabled: false,
+        rotateDecelerationEnabled: false,
+      }}
       onLongPress={handleLongPress}
     >
       <Camera
+        ref={cameraRef}
         zoomLevel={initialZoom}
         centerCoordinate={initialCenter}
         animationMode="flyTo"
@@ -247,10 +277,10 @@ export const PersonalMap: React.FC<Props> = ({
         <CircleLayer
           id="saved-pins-bg"
           filter={['!', ['has', 'point_count']]}
-          minZoomLevel={14}
+          minZoomLevel={10}
           style={{
             circleColor: ['case', ['get', 'visited'], palette.surface_base, palette.brand_indigo],
-            circleRadius: ['interpolate', ['linear'], ['zoom'], 14, 9, 18, 11],
+            circleRadius: ['interpolate', ['linear'], ['zoom'], 10, 5, 12, 7, 14, 9, 18, 11],
             circleStrokeColor: palette.brand_indigo,
             circleStrokeWidth: ['case', ['get', 'visited'], 2.0, 1.5],
           }}
@@ -260,7 +290,7 @@ export const PersonalMap: React.FC<Props> = ({
         <SymbolLayer
           id="saved-pins-icon"
           filter={['all', ['!', ['has', 'point_count']], ['!', ['get', 'visited']]]}
-          minZoomLevel={14}
+          minZoomLevel={12}
           style={{
             iconImage: [
               'match',
@@ -281,7 +311,7 @@ export const PersonalMap: React.FC<Props> = ({
             ],
             iconAllowOverlap: true,
             iconIgnorePlacement: false,
-            iconSize: ['interpolate', ['linear'], ['zoom'], 14, 0.45, 16, 0.5, 18, 0.55],
+            iconSize: ['interpolate', ['linear'], ['zoom'], 10, 0.22, 12, 0.32, 14, 0.45, 16, 0.5, 18, 0.55],
           }}
         />
       </ShapeSource>
@@ -312,7 +342,9 @@ export const PersonalMap: React.FC<Props> = ({
       )}
     </MapView>
   );
-};
+});
+
+PersonalMap.displayName = 'PersonalMap';
 
 // Re-export Mapbox so callers don't need to import @rnmapbox/maps directly
 // just to call setAccessToken at app boot.

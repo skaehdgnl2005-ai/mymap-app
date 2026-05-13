@@ -13,10 +13,10 @@
 import { useShareIntent } from 'expo-share-intent';
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Mapbox, PersonalMap } from './src/map/PersonalMap';
+import { Mapbox, PersonalMap, type PersonalMapHandle } from './src/map/PersonalMap';
 import { MOCK_PLACES } from './src/dev/mock-places';
 import { listPlaces } from './src/places/repo';
 import { SaveModal } from './src/save-flow/SaveModal';
@@ -73,6 +73,12 @@ export default function App() {
   const [userId, setUserId] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Imperative handle to PersonalMap for post-save camera flyTo. Set up
+  // during Phase 5 Track A founder smoke-test feedback: saving a place
+  // without visual camera response left the user uncertain whether the
+  // save landed and where. flyTo confirms the save geographically.
+  const mapHandleRef = useRef<PersonalMapHandle>(null);
 
   // Boot: sign in (or restore session), then load that user's saved places.
   useEffect(() => {
@@ -138,6 +144,10 @@ export default function App() {
 
   const handleSaved = useCallback((place: SavedPlace) => {
     setSavedPlaces((prev) => [place, ...prev]);
+    // Fly camera to the new pin so the user sees what they just saved.
+    // zoom 16 = close enough for the pin to be visually obvious but
+    // still shows surrounding context (street + neighborhood).
+    mapHandleRef.current?.flyTo([place.lng, place.lat], { zoom: 16, duration: 800 });
   }, []);
 
   // Pick the place set to render: real saved places when authed, otherwise
@@ -147,6 +157,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <PersonalMap
+        ref={mapHandleRef}
         savedPlaces={placesForMap}
         initialCenter={[127.055, 37.5446]}
         initialZoom={15}

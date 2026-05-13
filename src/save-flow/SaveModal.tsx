@@ -29,8 +29,49 @@ import {
   View,
 } from 'react-native';
 
-import type { KakaoPlaceResult, SavedPlace } from '../../spec/data-shapes';
+import type { KakaoPlaceResult, SavedPlace, SavedPlaceCategory } from '../../spec/data-shapes';
 import { inferCategoryFromKakao } from '../../spec/data-shapes';
+
+// User-selectable categories in the save-flow modal (non-anchor only — anchors
+// are set in Phase 6 onboarding, not via share-flow). Order = visual chip
+// order. CAFE first because Instagram-cafe-screenshot is the wedge primary.
+const SAVE_FLOW_CATEGORIES: SavedPlaceCategory[] = [
+  'CAFE',
+  'RESTAURANT',
+  'BAR',
+  'SHOP',
+  'LANDMARK',
+  'OTHER',
+];
+
+// Korean label rendered on each chip.
+const CATEGORY_LABELS: Record<SavedPlaceCategory, string> = {
+  CAFE: '카페',
+  RESTAURANT: '식당',
+  BAR: '술집',
+  SHOP: '가게',
+  LANDMARK: '명소',
+  OTHER: '기타',
+  HOME: '집',
+  SCHOOL: '학교',
+  WORK: '회사',
+};
+
+// Keyword appended to the Naver search query to narrow results by category.
+// Empty string = don't append (LANDMARK and OTHER have no specific Korean
+// keyword that helps Naver narrow; for those the chip only affects the
+// saved place's category, not the search).
+const CATEGORY_SEARCH_KEYWORDS: Record<SavedPlaceCategory, string> = {
+  CAFE: '카페',
+  RESTAURANT: '식당',
+  BAR: '술집',
+  SHOP: '가게',
+  LANDMARK: '',
+  OTHER: '',
+  HOME: '',
+  SCHOOL: '',
+  WORK: '',
+};
 // Provider client swap per DESIGN.md D5b (Kakao Local API blocked by
 // 사업자 등록 access constraint at v1; Naver Open API used as v1
 // fallback). When biz-reg becomes viable, swap this line back to
@@ -57,6 +98,14 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<KakaoPlaceResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Category prefilter for MANUAL_RESOLVE — added 2026-05-11 after Phase 5
+  // Track A founder smoke-test surfaced friction with Naver's 5-result hard
+  // cap when place names are ambiguous (e.g. "어니언" matches cafes + bars).
+  // Picking a category up-front (a) narrows Naver via keyword append, and
+  // (b) sets the saved place's category in one step (Toss principle: every
+  // tap does work). Default CAFE per wedge primary case.
+  const [selectedCategory, setSelectedCategory] = useState<SavedPlaceCategory>('CAFE');
 
   // Lifecycle: when the modal becomes visible, kick off resolution per
   // the URL's strategy. Reset state when it closes so reopening with a
@@ -108,15 +157,21 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
     }
   }, [visible, urlRaw, urlStrategy]);
 
-  // Debounced Kakao keyword search for the manual path.
+  // Debounced Naver keyword search for the manual path. Category keyword
+  // appended to query when a narrowing keyword exists (CAFE/RESTAURANT/
+  // BAR/SHOP). LANDMARK/OTHER skip the append — those don't have a single
+  // Korean keyword that helps Naver disambiguate.
   useEffect(() => {
     if (phase !== 'manual') return;
-    if (!searchQuery.trim()) {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
       setResults([]);
       return;
     }
+    const categoryKw = CATEGORY_SEARCH_KEYWORDS[selectedCategory];
+    const queryForNaver = categoryKw ? `${trimmed} ${categoryKw}` : trimmed;
     const handle = setTimeout(() => {
-      naverSearchByKeyword(searchQuery).then((r) => {
+      naverSearchByKeyword(queryForNaver).then((r) => {
         if (r.error) {
           setError(r.error.message);
           setResults([]);
@@ -126,7 +181,7 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
       });
     }, 300);
     return () => clearTimeout(handle);
-  }, [searchQuery, phase]);
+  }, [searchQuery, phase, selectedCategory]);
 
   const handleSave = async (place: KakaoPlaceResult): Promise<void> => {
     setPhase('saving');
@@ -136,7 +191,14 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
       name: place.place_name,
       lat: parseFloat(place.y),
       lng: parseFloat(place.x),
-      category: inferCategoryFromKakao(place.category_name),
+      // AUTO_RESOLVE path: infer category from Naver's category_name field
+      // (preserves vendor signal for share-sheet auto-resolution from
+      // Naver/Kakao Place URLs). MANUAL_RESOLVE path: use the user-picked
+      // chip — they already declared category in step 1 of the modal.
+      category:
+        url.strategy === 'AUTO_RESOLVE'
+          ? inferCategoryFromKakao(place.category_name)
+          : selectedCategory,
       source_url: url.raw,
       og_title: null,
       og_image_url: null,
@@ -205,6 +267,8 @@ export const SaveModal: React.FC<Props> = ({ visible, url, userId, onClose, onSa
           <ManualSearchView
             query={searchQuery}
             onQueryChange={setSearchQuery}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
             results={results}
             onPick={handleSave}
           />
@@ -238,6 +302,8 @@ const ResolvedCard: React.FC<{ place: KakaoPlaceResult; onSave: () => void }> = 
 interface ManualSearchProps {
   query: string;
   onQueryChange: (q: string) => void;
+  selectedCategory: SavedPlaceCategory;
+  onCategoryChange: (c: SavedPlaceCategory) => void;
   results: KakaoPlaceResult[];
   onPick: (p: KakaoPlaceResult) => void;
 }
@@ -245,6 +311,8 @@ interface ManualSearchProps {
 const ManualSearchView: React.FC<ManualSearchProps> = ({
   query,
   onQueryChange,
+  selectedCategory,
+  onCategoryChange,
   results,
   onPick,
 }) => {
@@ -259,7 +327,29 @@ const ManualSearchView: React.FC<ManualSearchProps> = ({
 
   return (
     <>
-      <Text style={styles.subtitle}>이 장소의 이름을 입력해주세요</Text>
+      <Text style={styles.subtitle}>이 장소의 분야를 골라주세요</Text>
+      <View style={styles.chipRow}>
+        {SAVE_FLOW_CATEGORIES.map((cat) => {
+          const isSelected = selectedCategory === cat;
+          return (
+            <Pressable
+              key={cat}
+              style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+              onPress={() => onCategoryChange(cat)}
+              hitSlop={4}
+            >
+              <Text
+                style={[
+                  styles.categoryChipText,
+                  isSelected && styles.categoryChipTextSelected,
+                ]}
+              >
+                {CATEGORY_LABELS[cat]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <TextInput
         ref={inputRef}
         value={query}
@@ -320,7 +410,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   chip: {
-    backgroundColor: '#F5F4F0',
+    backgroundColor: '#FAFAFA',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
@@ -331,7 +421,7 @@ const styles = StyleSheet.create({
     color: '#6B6B6B',
   },
   bigCard: {
-    backgroundColor: '#F5F4F0',
+    backgroundColor: '#FAFAFA',
     padding: 16,
     borderRadius: 8,
     marginTop: 12,
@@ -361,6 +451,33 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 16,
     color: '#1A1850',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+    marginBottom: 12,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 9999,
+    backgroundColor: '#F0EEE7',
+    borderWidth: 1,
+    borderColor: '#E0DED7',
+  },
+  categoryChipSelected: {
+    backgroundColor: '#2D2A6B',
+    borderColor: '#2D2A6B',
+  },
+  categoryChipText: {
+    fontSize: 13,
+    color: '#6B6B6B',
+    fontWeight: '500',
+  },
+  categoryChipTextSelected: {
+    color: '#FFFFFF',
   },
   resultRow: {
     paddingVertical: 12,
