@@ -266,12 +266,30 @@ function toFriendlyError(msg: string, mode: Mode): string {
   if (lower.includes('already registered') || lower.includes('user already')) {
     return '이미 가입된 이메일이에요. 로그인을 시도해보세요.';
   }
-  if (lower.includes('password')) {
-    return '비밀번호 형식을 확인해주세요.';
+  // Supabase rejects throwaway domains ("test@test.com", "a@a.com" etc.)
+  // with an "email address ... is invalid" message. Distinguish from
+  // password-strength rejections by checking for the explicit "invalid"
+  // wording — Supabase's actual format-error phrasing.
+  if (lower.includes('email') && lower.includes('invalid')) {
+    return '이메일 형식이 유효하지 않아요. 실제 사용 중인 이메일을 입력해주세요 (테스트 도메인은 거부됩니다).';
   }
-  if (lower.includes('email')) {
-    return '이메일 형식을 확인해주세요.';
+  // Password-strength rejection has "password" + "weak" OR "should be at
+  // least N characters" — match more conservatively than the prior
+  // `lower.includes('password')` which swallowed many unrelated errors.
+  if (
+    lower.includes('password') &&
+    (lower.includes('weak') || lower.includes('characters') || lower.includes('length'))
+  ) {
+    return '비밀번호가 너무 약해요. 6자 이상 + 영문/숫자 조합을 권장합니다.';
   }
+  if (lower.includes('rate limit')) {
+    return '잠시 후 다시 시도해주세요 (요청이 너무 많음).';
+  }
+  if (lower.includes('signup') && lower.includes('disabled')) {
+    return '현재 회원가입이 비활성화되어 있어요. 관리자에게 문의해주세요.';
+  }
+  // Unknown error: surface verbatim so the user (or dev) can diagnose.
+  // Phase 5 의 "fail-loud over fail-quiet" 원칙 동일 적용.
   return msg;
 }
 
