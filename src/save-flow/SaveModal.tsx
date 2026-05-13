@@ -339,10 +339,7 @@ const ManualSearchView: React.FC<ManualSearchProps> = ({
               hitSlop={4}
             >
               <Text
-                style={[
-                  styles.categoryChipText,
-                  isSelected && styles.categoryChipTextSelected,
-                ]}
+                style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
               >
                 {CATEGORY_LABELS[cat]}
               </Text>

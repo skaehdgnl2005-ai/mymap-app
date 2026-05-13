@@ -31,6 +31,14 @@ const config: ExpoConfig = {
     // /office-hours session locked brand `자국`. See PROJECT_STATE.md
     // "Open decisions" → bundleIdentifier entry for full rationale.
     bundleIdentifier: 'com.jaguk.app',
+    // Sign In with Apple capability (Phase 6 auth). Adds the
+    // com.apple.developer.applesignin entitlement at prebuild time so
+    // expo-apple-authentication's native module has the iOS permission
+    // to request identity tokens. Supabase-side enablement (Apple
+    // Service ID + return URL) lands at Phase 10 — until then the button
+    // surface is functional but signInWithIdToken returns
+    // "Provider not enabled".
+    usesAppleSignIn: true,
   },
   android: {
     adaptiveIcon: {
@@ -61,6 +69,17 @@ const config: ExpoConfig = {
         // Note: do NOT pass RNMapboxMapsDownloadToken here — it's deprecated.
         // The plugin reads RNMAPBOX_MAPS_DOWNLOAD_TOKEN from process.env
         // (bridged from MAPBOX_DOWNLOADS_TOKEN at the top of this file).
+      },
+    ],
+    [
+      'expo-location',
+      {
+        // Korean permission strings per Phase 6 § D11 "My Location button".
+        // Foreground-only — v1 has no background-tracking feature (per D11
+        // lock). The "always" variant would require additional privacy
+        // disclosure on the App Store with no user-visible benefit at v1.
+        locationWhenInUsePermission:
+          '내 위치 버튼을 누르면 현재 위치 주변의 저장된 장소를 볼 수 있어요.',
       },
     ],
     [

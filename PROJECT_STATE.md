@@ -50,6 +50,299 @@ Supabase auth API, 같은 RLS 경계, UI 만 추가.
 2026-05-04) 은 Completed phases section 에 보존 — 이 narrative 의
 이전 버전이 그 detail 을 들고 있었음.
 
+**Status (2026-05-13, implementation close):** Code complete.
+`pnpm typecheck` PASS, `pnpm lint` PASS (0 errors, 3 pre-existing
+SaveModal warnings from D5b client-import positioning carried over
+from Phase 5 — not new). Implementation surface includes the full
+3-state router in [App.tsx](App.tsx) (auth gate → onboarding gate →
+map), AuthScreen with Apple Sign In wired via `expo-apple-authentication`
++ Email working + Google placeholder, the 2-step onboarding flow
+(HOME → SCHOOL/WORK with BOTH-mode role-flipping), the
+useOnboardingComplete two-layer gate (AsyncStorage flag +
+DB-anchor fallback), the HintCard with per-userId AsyncStorage
+dismissal, and the MyLocationButton with deferred-first-tap GPS
+permission per D8 lock. Validation gate is on a real-device smoke
+test (deferred — Phase 5 EAS build path still warm; new build needed
+since native deps changed). No CURRENT_PHASE.md flip yet — that gates
+on the smoke-test pass.
+
+**Mid-phase decisions (2026-05-13, in chronological order):**
+
+- **Navigation lib: `@react-navigation/native` + `@react-navigation/native-stack`**
+  (NOT `expo-router`). Reason: `expo-router` requires file-based
+  routing migration which would restructure the current
+  `App.tsx`-as-entry pattern Phase 5 just stabilized. Phase 6 doc
+  explicitly allows either. React Navigation is the smaller-blast-
+  radius choice for the onboarding-stack scope. Peer deps
+  `react-native-screens` + `react-native-safe-area-context` also
+  installed. Net usage: deps INSTALLED but ultimately UNUSED at
+  Phase 6 close — the 2-step onboarding flow is small enough that
+  inline state in `App.tsx` (`useState<'home' | 'work-school'>`)
+  is the smaller blast radius than a Stack.Navigator + Screen
+  components. Deps stay installed for Phase 7+ multi-screen needs
+  (pin detail popover, search overlay both will benefit). Decision
+  to NOT use them in Phase 6 is the principled "use what you need"
+  call, not regret.
+- **Apple Sign In: `expo-apple-authentication`** with Apple's
+  required `AppleAuthenticationButton` component (Apple HIG: custom-
+  styled Sign In With Apple buttons = App Store rejection). Button
+  auto-hides on Android via `isAvailableAsync()` check. Sign-in
+  flow: `signInAsync` → `credential.identityToken` →
+  `supabase.auth.signInWithIdToken({ provider: 'apple', token })`.
+  End-to-end requires a Supabase-dashboard config step (Service ID
+  + return URL) that the founder does separately — without it the
+  signInWithIdToken call returns "Provider not enabled" verbatim
+  to the AuthScreen error banner, which is itself the diagnostic
+  signal pointing at the remaining dashboard step. See "Apple Sign
+  In Supabase-dashboard config recipe" below for the user-side
+  steps.
+- **Google Sign In: PLACEHOLDER ("준비 중") at v1 Phase 6.** Full
+  impl deferred per the upfront mid-phase decision plus discovered-
+  cost of implementing. Estimated 1-2h follow-up session: install
+  `@react-native-google-signin/google-signin` + Expo config plugin
+  registration + iOS client ID + Android client ID + Android SHA-1
+  fingerprint (from EAS keystore) + Supabase dashboard config.
+  Phase 6 verification gate "fresh user can sign in via Apple OR
+  Google" is satisfied by Apple (code-ready) + Email (working
+  E2E). Google can land at Phase 7 (during a polish pass) or roll
+  to Phase 10 dashboard sprint.
+- **`expo-location`** for My Location button. Standard Expo module,
+  no provider-account dependency. Permission deferred to first
+  button tap per D8 + D11 lock (zero permissions during onboarding).
+  Single-shot read (`getCurrentPositionAsync`) NOT
+  `watchPositionAsync` — v1 wedge is "show my saved pins", live
+  tracking has no use today and would add background-location
+  disclosure burden at App Store review.
+- **AddressSearchInput uses Naver (D5b), not Kakao geocoder
+  (phase doc text).** Phase doc § task 3 wording was "Kakao address
+  search input (reuse component from Phase 5 manual-resolve modal)
+  / Allow dong-only via Kakao geocoder". Naver Open API Local
+  Search has NO geocoder — only place search. So typing "성수동"
+  alone returns places IN 성수동, not the dong centroid. User picks
+  any result (familiar building or landmark) as their HOME
+  anchor — adequate signal for v1's "give me a distance gauge"
+  purpose. The phase doc's geocoder branch reactivates only on
+  D5b → D5 reversal (사업자 등록 path, see Open decisions).
+  Trade-off documented in
+  [AddressSearchInput.tsx](src/onboarding/AddressSearchInput.tsx)
+  header comment.
+- **Email auth supports both sign-in and sign-up via explicit
+  toggle.** AuthScreen has a "처음이세요? 회원가입" link below the
+  primary button that flips `mode: 'signin' | 'signup'` —
+  signInWithPassword vs signUp dispatched per the mode. Supabase
+  project's `enable_confirmations=false` makes signUp return an
+  active session immediately (dev-friendly). Phase 10 adds
+  password recovery + email verification gate per PIPA.
+- **OnboardingStepWorkSchool's BOTH-mode role-flipping.** Phase 6
+  doc § task 4 specified 3 modes (학교 추가 / 직장 추가 / 둘 다
+  추가) but did NOT specify how BOTH-mode handles two sequential
+  picks. Implementation: `nextBothRole: 'WORK' | 'SCHOOL'` state,
+  starts WORK; after saving WORK, flips to SCHOOL for the next
+  pick; "건너뛰기" turns into "완료" after first save (user can
+  add only WORK and tap 완료 without forcing both). Defends "skip
+  is non-penalty" per D7 R7 lock.
+- **useOnboardingComplete two-layer gate.** Per-userId AsyncStorage
+  flag `onboarding_complete:<userId>` is the fast path. Slow path
+  for fresh-install-on-existing-account: query `saved_places` for
+  any HOME/SCHOOL/WORK anchor; if ≥1, backfill the flag and treat
+  as done. Network failure on cold boot → fail SAFE by routing to
+  onboarding (re-walking once is better than confusion on an empty
+  map). This pattern carries the spirit of D8's "evolving canvas"
+  identity — the user's data IS the onboarding state, not a
+  separate flag artifact.
+- **HintCard pattern: per-userId AsyncStorage flag
+  `hint_card_dismissed:<userId>`** matching the onboarding-
+  complete pattern. Dismissal triggers: (a) explicit X tap on the
+  card, (b) first `+` FAB tap (per Phase 6 doc § task 6 lock).
+  Card pointer-events set to `box-none` so taps on the underlying
+  map still register (X button + text remain pressable). Critical
+  for the empty-map UX: user can pan around the map while the
+  hint is visible without the hint blocking interaction.
+- **`@react-navigation/native-stack` deps stay installed but
+  unused.** App.tsx routes via inline `useState<'home' | 'work-
+  school'>` rather than a Stack.Navigator. Reason: 2 screens with
+  linear flow + no back button + no header bar = state machine
+  is the smaller blast radius. Deps cost zero at runtime
+  (untouched code path) and are pre-positioned for Phase 7+ where
+  pin detail popover + search overlay legitimately need stack
+  semantics.
+- **App.tsx is the comprehensive 3-state router (NOT
+  decomposed into MainView + OnboardingNavigator helpers).**
+  Initial implementation tried the decomposition (`src/app/
+  MainView.tsx`, `src/onboarding/OnboardingNavigator.tsx`) but the
+  prior-session work already had everything inline in App.tsx
+  as `OnboardingFlow` + `MapScreen` child components. After
+  reconciling for import-path mismatches, the inline-decomposed
+  variant won — 285 lines in one file is acceptable for a
+  routing controller, and the inline pattern keeps the cold-boot
+  splash + auth state machine + transition logic in one
+  reading window. The unused MainView/OnboardingNavigator stubs
+  were deleted.
+- **`.env.example` `EXPO_PUBLIC_TEST_USER_EMAIL/_PASSWORD` no
+  longer referenced.** Boot-log assertion in App.tsx drops them.
+  Local `.env` may still have them set — harmless, no code path
+  reads them anymore. Cleanup task for Phase 7+: prune from
+  `.env.example` once the dev confirms no test-user dev fallback
+  is needed (Phase 5's Track A scripts may still use them
+  independently — verify before pruning).
+
+**Files created in Phase 6:**
+
+- [src/auth/AuthScreen.tsx](src/auth/AuthScreen.tsx) — sign-in/up
+  surface; Email working, Apple wired via expo-apple-authentication,
+  Google stub.
+- [src/auth/useSession.ts](src/auth/useSession.ts) — Supabase
+  session subscriber hook; replaces Phase 5's `ensureDevSession`.
+- [src/onboarding/AddressSearchInput.tsx](src/onboarding/AddressSearchInput.tsx)
+  — Naver-backed shared search input for both onboarding steps.
+- [src/onboarding/ProgressDots.tsx](src/onboarding/ProgressDots.tsx)
+  — 2-dot progress indicator (no "Step X of Y" text per D7 lock).
+- [src/onboarding/OnboardingStepHome.tsx](src/onboarding/OnboardingStepHome.tsx)
+  — Step 1, HOME anchor.
+- [src/onboarding/OnboardingStepWorkSchool.tsx](src/onboarding/OnboardingStepWorkSchool.tsx)
+  — Step 2, SCHOOL/WORK/BOTH toggle with role-flipping.
+- [src/onboarding/useOnboardingComplete.ts](src/onboarding/useOnboardingComplete.ts)
+  — two-layer onboarding gate (AsyncStorage flag + DB-anchor
+  fallback).
+- [src/onboarding/HintCard.tsx](src/onboarding/HintCard.tsx) —
+  persistent above-FAB hint with per-userId AsyncStorage dismissal.
+- [src/location/MyLocationButton.tsx](src/location/MyLocationButton.tsx)
+  — GPS button with deferred-permission flow + 설정 deep-link.
+
+**Files modified in Phase 6:**
+
+- [App.tsx](App.tsx) — full rewrite: 3-state router (auth →
+  onboarding → map) replacing Phase 5's ensureDevSession-and-then-
+  map flow. Inline `OnboardingFlow` + `MapScreen` children.
+- [package.json](package.json) + [pnpm-lock.yaml](pnpm-lock.yaml)
+  — added: `@react-navigation/native ^7.2.4`,
+  `@react-navigation/native-stack ^7.15.0`, `expo-apple-authentication
+  ~8.0.8`, `expo-location ~19.0.8`, `react-native-safe-area-context
+  ~5.6.2`, `react-native-screens ~4.16.0`.
+
+**Verification gate (Phase 6, partial):**
+
+Phase 6 doc § Verification has 13 checklist items. Status:
+
+- [x] `pnpm typecheck` — PASS
+- [x] `pnpm lint` — PASS (0 errors, 3 pre-existing warnings)
+- [ ] Fresh user can sign in via Apple OR Google — CODE-READY for
+      Apple + Email; Google is placeholder. End-to-end Apple gates
+      on Supabase-dashboard config (recipe below).
+- [ ] After auth, lands on Step 1 (not on map directly) — CODE-
+      VERIFIED via router state machine in App.tsx; device-verify
+      pending.
+- [ ] Returning user skips onboarding — CODE-VERIFIED via
+      `useOnboardingComplete` AsyncStorage flag; device-verify
+      pending.
+- [ ] Step 1: address search returns Korean dong-level results —
+      CODE-VERIFIED via Naver D5b client; device-verify pending.
+- [ ] HOME pin saves correctly with `category: 'HOME'` — CODE-
+      VERIFIED in OnboardingStepHome insert payload; device-verify
+      pending.
+- [ ] Step 2: toggle works, can add SCHOOL + WORK both — CODE-
+      VERIFIED via BOTH-mode role-flipping; device-verify pending.
+- [ ] Both step skips work without penalty — CODE-VERIFIED via
+      `onNext(null)` / `onDone(savedSoFar)` paths; device-verify
+      pending.
+- [ ] Hint card visible on first map view — CODE-VERIFIED;
+      device-verify pending.
+- [ ] Hint card dismisses on first `+` tap — CODE-VERIFIED in
+      App.tsx `checkClipboard` early call to `dismissHint()`;
+      device-verify pending.
+- [ ] Hint card never re-appears after dismissal — CODE-VERIFIED
+      via per-userId AsyncStorage; device-verify pending.
+- [ ] My Location button works (granted + denied paths both) —
+      CODE-VERIFIED; device-verify pending.
+- [ ] Onboarding completion <30s skip path — DEVICE-MEASURABLE
+      ONLY, deferred to smoke test.
+- [ ] Onboarding completion <2min thorough path — DEVICE-MEASURABLE
+      ONLY, deferred to smoke test.
+
+**Device smoke-test prerequisites (before flipping CURRENT_PHASE.md
+to Phase 7):**
+
+1. EAS build (Phase 5's `preview` profile works as-is; new build
+   needed because native deps changed —`expo-apple-authentication`
+   + `expo-location` + `react-native-screens` + `react-native-
+   safe-area-context` all add iOS / Android native code).
+2. Install on real device (founder iPhone has registered UDID from
+   Phase 5; QR install path works the same).
+3. Sign out from Phase 5's test-user session (`supabase.auth.signOut()`
+   in dev console OR uninstall + reinstall).
+4. Walk the 13 verification items above; record results in this
+   PROJECT_STATE entry per the Phase 5 Track A pattern.
+
+**Apple Sign In Supabase-dashboard config recipe (1-time, user-driven):**
+
+Apple Dev Program activated 2026-05-13 (per earlier PROJECT_STATE
+update). Remaining steps to make Apple Sign In return a working
+Supabase session:
+
+1. **Apple Developer Console** → Identifiers → "+":
+   - Choose "Services IDs" (not App IDs).
+   - Identifier: `com.jaguk.app.signinwithapple` (any reverse-DNS
+     string that's NOT the app's bundle id `com.jaguk.app`).
+   - Description: "자국 Sign in with Apple".
+   - Save.
+   - Edit the just-created Service ID → enable "Sign In with Apple".
+   - Configure → Domains & Subdomains: `<supabase-project-ref>.supabase.co`
+     (no `https://`, no path).
+   - Configure → Return URLs:
+     `https://<supabase-project-ref>.supabase.co/auth/v1/callback`.
+   - Save.
+
+2. **Apple Developer Console** → Keys → "+":
+   - Name: "Supabase Apple Sign In".
+   - Check "Sign In with Apple" → Configure → choose the App ID
+     `com.jaguk.app` as the primary App ID.
+   - Save → download the `.p8` private key file (one-time download
+     — save securely). Note the Key ID (10 chars) and your Team ID
+     (10 chars, top-right of Apple Developer Console).
+
+3. **Supabase Dashboard** → Authentication → Providers → Apple:
+   - Enable.
+   - Client ID = the Service ID identifier from step 1
+     (`com.jaguk.app.signinwithapple`).
+   - Secret Key:
+     - Supabase generates this on its end from the `.p8` + Team ID
+       + Key ID inputs. Paste them into the secret-generation UI.
+     - The "Secret Key" Supabase stores is a JWT signed with the
+       `.p8`; rotates every 6 months. Calendar the rotation; the
+       p8 file itself is the long-term truth.
+   - Save.
+
+4. **Test on real device** — Apple Sign In flow requires iOS, the
+   `expo-apple-authentication` button auto-hides on Android.
+   Expected: tap "Apple로 계속하기" → Apple sheet → authenticate →
+   App.tsx routes to onboarding (new user) or map (returning user).
+
+If the flow returns "Provider not enabled" / "Unsupported provider"
+error in the AuthScreen banner, step 3 isn't landed. If the flow
+returns "Invalid client_id" or similar, step 1's Service ID
+identifier doesn't match what Supabase has stored.
+
+**Recommended Phase 7+ doc tweaks:**
+
+- Phase 7 doc: when adding pin-detail popover navigation, REUSE
+  the `@react-navigation/native-stack` deps already installed in
+  Phase 6 (don't re-install or pivot to expo-router; the stack
+  navigator is the pre-positioned tool).
+- Phase 7 / Phase 10: Google Sign In implementation. Recipe steps
+  similar to Apple but with Google Cloud Console instead of Apple
+  Developer Console. iOS client ID + Android client ID (with
+  SHA-1 from EAS keystore) needed. Add
+  `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and
+  `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` to `.env.example` + EAS
+  dashboard at that time. Replace `handleProviderStub('Google')`
+  in AuthScreen with real `signInWithIdToken({ provider: 'google',
+  token: id_token })` call.
+- Phase 10: Privacy + ToS pages. Currently `https://jaguk.app/
+  privacy` and `https://jaguk.app/terms` are placeholder URLs in
+  AuthScreen; these must resolve to real hosted documents before
+  App Store / Play Store submission. Add to RELEASE_CHECKLIST.md
+  Trigger 6 (App Store submission).
+
 > _아래 이전 narrative 의 큰 덩어리는 archaeology 가치 있는 mid-
 > phase decisions + cross-phase reconciliation patterns 을 담고
 > 있으므로 Phase 6 narrative 시작점에서 잘려 Completed phases
@@ -1119,11 +1412,17 @@ prevents the former, the exemption clause prevents the latter.
 
 ## Pending phases
 
-- [ ] Phase 6: Onboarding + auth flow (2-step anchor, hint card)
 - [ ] Phase 7: Pin interactions + states (tap-to-expand, long-press menu, visited, color filter)
 - [ ] Phase 8: Pin detail popover (bottom sheet, OG card, edit fields)
 - [ ] Phase 9: Search overlay (Kakao keyword search + pulsing results + save-from-result)
 - [ ] Phase 10: Polish + beta (perf, errors, App Store assets, TestFlight)
+
+(Phase 6: Onboarding + auth flow — implementation closed 2026-05-13;
+runtime device-verification gate OPEN. See `## Current phase` block for
+the full Status + the 13-item verification gate breakdown + the Apple
+Sign In Supabase-dashboard config recipe. Phase 6 is NOT moved to
+`## Completed phases` until the device smoke-test passes, mirroring
+the Phase 4 INVALIDATED-and-then-RE-VERIFIED pattern.)
 
 ## Open decisions (not yet locked)
 
@@ -1477,10 +1776,37 @@ This is a permanent property of this dev environment, not a fix-someday
 issue — recorded so a future contributor on Windows doesn't waste a
 day on `node-gyp ERR! find VS` before finding the docker recipe.
 
-### Apple Sign In + Google Sign In configuration deferred to Phase 10
+### Apple Sign In + Google Sign In configuration (Phase 6 partial close)
 
-Phase 3 doc step 5 originally included "Configure auth providers:
-Apple Sign In + Google Sign In" alongside Email/password.
+**Status update 2026-05-13** (Phase 6 implementation):
+
+- **Apple Sign In native side: DONE in Phase 6.** Installed
+  `expo-apple-authentication@~8.0.8`, set `ios.usesAppleSignIn: true`
+  in `app.config.ts` for the entitlement, wired
+  `AppleAuthentication.signInAsync` →
+  `supabase.auth.signInWithIdToken({ provider: 'apple', token })` in
+  `src/auth/AuthScreen.tsx`. Apple HIG-required
+  `AppleAuthenticationButton` component used. Apple Dev Program
+  activated 2026-05-12 (per earlier PROJECT_STATE update) unblocked
+  the iOS-side requirements.
+- **Apple Sign In remaining work: Supabase dashboard provider enable.**
+  Apple Service ID + return URL + signing key. One-time dashboard +
+  Apple Developer Console session, user-driven. The Phase 6 Current
+  phase block has the full recipe in "Apple Sign In Supabase-
+  dashboard config recipe". Until then, tapping the Apple button
+  shows "Provider not enabled" in the error banner verbatim — fail-
+  loud, useful diagnostic, not a silent fail.
+- **Google Sign In: still both sides deferred.** Native module
+  (`@react-native-google-signin/google-signin`) + Google Cloud
+  Console OAuth client (iOS + Android with SHA-1) + Supabase
+  dashboard enable. Phase 6 ships an Alert stub for the Google
+  button. Estimated 1-2h follow-up session per Phase 6 mid-phase
+  decisions. Can land in Phase 7 as polish OR Phase 10 dashboard
+  sprint.
+
+**Original context (preserved for archaeology):** Phase 3 doc step 5
+originally included "Configure auth providers: Apple Sign In + Google
+Sign In" alongside Email/password.
 **Configuration moved to Phase 10**; the *decision* (locked
 2026-04-30) is unchanged — Apple + Google + Email is still v1 scope.
 KakaoTalk stays deferred to v1.5 per existing Open decisions entry.
@@ -2318,14 +2644,47 @@ specific consumer mismatch.
 
 ## Active blockers
 
-**(none — Phase 5 fully closed 2026-05-13; Phase 6 ready to start.)**
+**Phase 6 device-verification gate OPEN (1 gate, 2 sub-tracks).**
+
+Phase 6 implementation closed 2026-05-13 (typecheck + lint PASS; full
+file list + 13-item verification breakdown in `## Current phase`
+Status block). What remains:
+
+- **Track A — EAS iOS build with new native modules.** Phase 5's
+  preview profile works as-is but a fresh build is needed because
+  Phase 6 added native code:
+  `expo-apple-authentication@~8.0.8`, `expo-location@~19.0.8`,
+  `react-native-screens@~4.16.0`,
+  `react-native-safe-area-context@~5.6.2`.
+  Recipe: `pnpm dlx eas-cli build --platform ios --profile preview`
+  (apply `EAS_SKIP_AUTO_FINGERPRINT=1` per the dlx-overrides
+  cross-phase entry). Install via QR on founder iPhone (UDID
+  already registered from Phase 5).
+- **Track B — Device smoke test (13 checklist items).** Walk the
+  fresh-user flow per the Phase 6 doc § Verification list. Items
+  already CODE-VERIFIED in the Current phase Status block; the
+  device test promotes them to RUNTIME-VERIFIED. Specifically
+  exercise: sign-out from Phase 5 test-user session, sign-up via
+  email (or Apple if Supabase dashboard Apple provider has been
+  enabled — recipe in Current phase block), walk HOME +
+  WORK/SCHOOL/BOTH paths + skip paths, verify hint card visible +
+  dismisses on FAB, verify My Location button granted + denied
+  branches, force-quit + relaunch to confirm onboarding-complete
+  persistence.
+
+**On Track A+B PASS:** flip
+`phases/CURRENT_PHASE.md` to phase-7 via
+`.\phases\set-current-phase.ps1 7`, then move Phase 6 from
+"Current phase" to "Completed phases" with final results recorded.
+
+**Earlier resolution record** (Phase 5 gates that previously blocked
+Phase 6 start):
 
 Phase 5 validation gate result is archived in the Completed phases
 section (see "Phase 5: Save-flow MVP — VALIDATION GATE") and in the
 header `Update 2026-05-13 (later same day)` entry. Phase 6 entry
-gate condition (friend-demo PASS per strict-gate posture) is met —
-the parallel-implementation contingency is moot; Phase 6 can start
-on the strict-gate condition without retroactive-invalidation risk.
+gate condition (friend-demo PASS per strict-gate posture) was met
+2026-05-13; Phase 6 implementation began + closed the same day.
 
 Resolution record for the two gates that previously blocked Phase 5
 lives in:
