@@ -260,18 +260,25 @@ Phase 6 doc § Verification has 13 checklist items. Status:
       ONLY, deferred to smoke test.
 
 **Device smoke-test prerequisites (before flipping CURRENT_PHASE.md
-to Phase 7):**
+to Phase 7) — DOWNSCOPED 2026-05-13:**
 
-1. EAS build (Phase 5's `preview` profile works as-is; new build
-   needed because native deps changed —`expo-apple-authentication`
-   + `expo-location` + `react-native-screens` + `react-native-
-   safe-area-context` all add iOS / Android native code).
-2. Install on real device (founder iPhone has registered UDID from
-   Phase 5; QR install path works the same).
-3. Sign out from Phase 5's test-user session (`supabase.auth.signOut()`
-   in dev console OR uninstall + reinstall).
-4. Walk the 13 verification items above; record results in this
-   PROJECT_STATE entry per the Phase 5 Track A pattern.
+Per the new "Risk-tier triage for smoke tests" subsection of
+Verification Principles, Phase 6 was reassessed from HIGH ("new
+native modules") to MEDIUM-actual-risk ("UI surface, wedge
+already validated, cold-boot routing testable in code"). The
+operational gate became the 3-item dev-client check in `Active
+blockers`:
+
+1. `pnpm android` (Pixel_7 emulator, dev client, no fresh EAS build)
+2. Email signup → Step 1 → save HOME → see pin
+3. Force-quit + relaunch → land on map (no onboarding re-walk)
+
+EAS rebuild + 13-item walkthrough on real device deferred to Phase
+10 (App Store submission) where the heavyweight cost is genuinely
+load-bearing. The 13-item list below stays as Phase 10 reference.
+
+**(Reference) Full 13-item verification list — for Phase 10
+heavyweight gate:**
 
 **Apple Sign In Supabase-dashboard config recipe (1-time, user-driven):**
 
@@ -557,6 +564,82 @@ and visually compare against spec." That is the cost we are pre-paying
 when we add this section — future phases will run their consumption
 checks while the producing context is still warm, instead of surfacing
 the gap one or two phases later when the diagnostic surface is wider.
+
+### Risk-tier triage for smoke tests (added 2026-05-13)
+
+The consumption-check principle above is sound but applying it
+uniformly across every phase produced Phase 5's heavyweight
+4-track verification (Track A + Track B + T-24h gate +
+friend-demo). For solo-project velocity, **size the smoke test to
+the phase's actual risk surface**, not to a fixed protocol.
+
+**Risk tiers** (decide at phase kickoff; record in the phase's
+"Status" block under Current phase):
+
+| Tier | Phase characteristics | Smoke-test shape |
+|---|---|---|
+| **HIGH** | Adds native modules, touches permission surface, rewrites cold-boot/auth path, or is user-facing milestone (friend-demo / beta / App Store) | EAS rebuild + real-device + 3-5 critical-path walkthrough items. ALL consumption checks per producing-phase ownership. |
+| **MEDIUM** | UI on existing native surface + new data flow, or touches RLS / new repo wrappers | Emulator dev-client + 2-3 critical-path items on the new surface. Skip EAS rebuild. |
+| **LOW** | Pure refactor, internal cleanup, dependency bump (no major behavior change), spec-doc edits, scripts | typecheck + lint + unit tests on touched modules. No device test. |
+
+**How to decide**:
+
+Ask 3 questions at phase kickoff:
+1. Does this phase add native modules or change permission strings?
+   → HIGH tier baseline.
+2. Does this phase touch the cold-boot / auth / first-render
+   path? → upgrade to HIGH.
+3. Is the user-facing surface area unchanged from the last
+   smoke-tested build? → downgrade one tier.
+
+**Examples from this project's history**:
+
+- Phase 3 (backend): MEDIUM. New RLS surface + repo wrappers, no
+  native code. Consumption check = the 12/12 E2E SQL script
+  hitting both local + cloud Supabase. NO device test needed.
+- Phase 4 (renderer): HIGH. New native module (`@rnmapbox/maps`
+  was added) + visual artifact (Style JSON) that the user can't
+  inspect by reading code. Should have been HIGH from the start
+  — Phase 4 close used only well-formedness, missed v8-schema
+  consumption → Phase 4 re-open. **This is the cautionary tale.**
+- Phase 5 (save-flow MVP): HIGH ×2. New native module
+  (`expo-share-intent`) + new external API (Naver Open API) +
+  wedge-validation milestone (friend-demo). 4-track protocol
+  was appropriate AT THAT MILESTONE — not at the implementation-
+  complete gate.
+- Phase 6 (onboarding + auth): HIGH for native modules
+  (`expo-apple-authentication` + `expo-location`) but
+  MEDIUM-actual-risk because (a) the surface area is UI not
+  vector tiles or external API, (b) wedge already validated at
+  Phase 5, (c) cold-boot path changes are simple state-machine
+  routing testable in code. **Final smoke test: 3 items on
+  emulator dev-client**, ~5 minutes. Heavyweight 13-item walk
+  reserved for App Store submission (Phase 10).
+- Phase 7 (pin interactions): MEDIUM expected. No new native
+  modules, no new permissions, UI work on existing rendered
+  surface. Smoke test: emulator dev-client, exercise the new
+  interaction (tap → expand, long-press → menu).
+- Phase 8 (pin popover): MEDIUM expected.
+- Phase 9 (search overlay): MEDIUM expected (new UI on existing
+  Naver client).
+- Phase 10 (polish + beta): HIGH. **App Store submission =
+  heavyweight verification.** All 13-item walkthroughs + EAS
+  prod build + TestFlight + friend re-test all fire here.
+  Phase 10 also installs Maestro (open-source RN E2E framework,
+  ~2-min auto-walkthrough) so subsequent verification cycles
+  cost minutes not hours.
+
+**The Phase 2/4/5 re-open lessons still apply** — they were each
+hit because well-formedness was confused with consumption. The
+triage above doesn't relax that; it sizes the consumption check
+to risk. A LOW-tier phase with a typecheck + unit test IS doing
+the consumption check (the test IS the consumption call). A
+HIGH-tier phase needs runtime because typecheck doesn't catch
+"the renderer initialized but the style doesn't match spec".
+
+**When in doubt, upgrade one tier**. The cost of an extra
+5-minute emulator check is far smaller than the cost of a
+re-opened phase one milestone later.
 
 ### When this principle does NOT apply
 
@@ -2644,38 +2727,65 @@ specific consumer mismatch.
 
 ## Active blockers
 
-**Phase 6 device-verification gate OPEN (1 gate, 2 sub-tracks).**
+**Phase 6 device-verification gate OPEN — DOWNSCOPED 2026-05-13
+to 3-item dev-client check.**
 
-Phase 6 implementation closed 2026-05-13 (typecheck + lint PASS; full
-file list + 13-item verification breakdown in `## Current phase`
-Status block). What remains:
+Original gate was full Track A (EAS iOS build with new native
+modules) + Track B (13-item walkthrough on real device). User
+decision 2026-05-13: that's overkill for Phase 6 risk profile
+(see "Verification Principles → Risk-tier triage for smoke tests"
+section). New gate:
 
-- **Track A — EAS iOS build with new native modules.** Phase 5's
-  preview profile works as-is but a fresh build is needed because
-  Phase 6 added native code:
-  `expo-apple-authentication@~8.0.8`, `expo-location@~19.0.8`,
-  `react-native-screens@~4.16.0`,
-  `react-native-safe-area-context@~5.6.2`.
-  Recipe: `pnpm dlx eas-cli build --platform ios --profile preview`
-  (apply `EAS_SKIP_AUTO_FINGERPRINT=1` per the dlx-overrides
-  cross-phase entry). Install via QR on founder iPhone (UDID
-  already registered from Phase 5).
-- **Track B — Device smoke test (13 checklist items).** Walk the
-  fresh-user flow per the Phase 6 doc § Verification list. Items
-  already CODE-VERIFIED in the Current phase Status block; the
-  device test promotes them to RUNTIME-VERIFIED. Specifically
-  exercise: sign-out from Phase 5 test-user session, sign-up via
-  email (or Apple if Supabase dashboard Apple provider has been
-  enabled — recipe in Current phase block), walk HOME +
-  WORK/SCHOOL/BOTH paths + skip paths, verify hint card visible +
-  dismisses on FAB, verify My Location button granted + denied
-  branches, force-quit + relaunch to confirm onboarding-complete
-  persistence.
+**Phase 6 smoke test (Android emulator, dev client, ~5 min):**
 
-**On Track A+B PASS:** flip
-`phases/CURRENT_PHASE.md` to phase-7 via
-`.\phases\set-current-phase.ps1 7`, then move Phase 6 from
-"Current phase" to "Completed phases" with final results recorded.
+1. `pnpm android` boots app on Pixel_7 emulator (Metro hot-reload,
+   no new EAS build — Phase 5's existing dev-client APK still
+   carries the right native runtime; the 4 new native deps
+   compile in at the `pnpm android` build step).
+2. Walk this exact 3-item path on emulator:
+   - [ ] **Email signup → routes to onboarding Step 1.** Fresh
+         user (delete Phase 5 test account from Supabase dashboard
+         OR sign up with a new email). Verifies the auth gate +
+         `useOnboardingComplete` "no anchors → pending" branch.
+   - [ ] **Pick a HOME result → land on map with HOME pin
+         visible.** Type any 동/landmark, pick any result.
+         Verifies `OnboardingStepHome` save + `useOnboardingComplete`
+         transition + the map re-renders with the new anchor.
+   - [ ] **Force-quit + relaunch → land on map directly (no
+         onboarding re-walk).** Verifies AsyncStorage `onboarding_
+         complete:<userId>` flag persistence.
+3. Record results inline below, then flip
+   `phases/CURRENT_PHASE.md` to phase-7 via
+   `.\phases\set-current-phase.ps1 7`.
+
+**What this gate intentionally does NOT cover** (code-verified is
+sufficient until App Store submission):
+- Apple Sign In end-to-end (gated on Supabase dashboard config;
+  fail mode is fail-loud "Provider not enabled" error banner).
+- Step 2 SCHOOL/WORK/BOTH role-flipping (logic-tested via the
+  state machine; visual verification at Phase 10 polish).
+- Skip paths (both step 1 and step 2 skip code paths are simple
+  branches — `onNext(null)` / `onDone(savedSoFar)` — low silent-
+  fail risk).
+- Hint card dismissal (AsyncStorage pattern shared with onboarding-
+  complete flag; if the latter works, the hint works).
+- My Location button (Phase 7 visited-state work will exercise
+  the GPS + camera path naturally).
+- Onboarding completion time measurement (App Store demo concern,
+  not Phase 6 functional gate).
+
+Full 13-item walkthrough is preserved in the Current phase block
+for **App Store submission (Phase 10) reference** — that's when
+the heavyweight verification is genuinely load-bearing.
+
+**Earlier resolution record** (Phase 5 gates that previously blocked
+Phase 6 start):
+
+Phase 5 validation gate result is archived in the Completed phases
+section (see "Phase 5: Save-flow MVP — VALIDATION GATE") and in the
+header `Update 2026-05-13 (later same day)` entry. Phase 6 entry
+gate condition (friend-demo PASS per strict-gate posture) was met
+2026-05-13; Phase 6 implementation began + closed the same day.
 
 **Earlier resolution record** (Phase 5 gates that previously blocked
 Phase 6 start):

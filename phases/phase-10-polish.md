@@ -85,6 +85,45 @@ App is on TestFlight (iOS) and Play Console internal testing track
    - Camera (if used in v1.5): same pattern
    - Photo library (if used in v1.5): same pattern
 
+6b. **Maestro E2E test suite** (added 2026-05-13 per the
+    Verification Principles → Risk-tier triage subsection in
+    PROJECT_STATE.md):
+
+    Install Maestro (open-source RN E2E framework) and write a
+    happy-path walkthrough for the core flows. Goal: turn the
+    "13-item manual smoke test" into a 2-min auto-run so
+    subsequent verification cycles cost minutes not hours.
+
+    ```bash
+    # Maestro install (one-time, host machine):
+    curl -Ls "https://get.maestro.mobile.dev" | bash
+
+    # Flow file structure (.maestro/):
+    #   auth-signup.yaml    → email signup → onboarding Step 1
+    #   onboarding-home.yaml → HOME save → map with pin
+    #   onboarding-skip.yaml → both skips → empty map + hint
+    #   save-flow-auto.yaml  → share Naver URL → save card → save
+    #   save-flow-manual.yaml → clipboard Instagram URL → search → save
+    #   pin-tap.yaml         → tap pin → popover (Phase 7+)
+    #   pin-visited.yaml     → long-press → mark visited (Phase 7+)
+    ```
+
+    Each flow file is YAML, ~10-30 lines, declarative
+    (`tapOn: 'HOME 추가'`, `inputText: 'me@example.com'`).
+    Maestro reads accessibility labels which we already have
+    (Phase 6's `accessibilityLabel="장소 추가"` etc.) — no
+    test-id ceremony required.
+
+    Run locally during dev: `maestro test .maestro/`. Add to
+    EAS Build hooks for CI runs against the simulator artifact.
+
+    **Coverage target for Phase 10:** the original 13-item
+    Phase 6 smoke list + Phase 5's 5-path save-flow validation +
+    Phase 7+ pin interactions = ~25 happy-path items, all
+    auto-run in <3 min. The same 25 items manually take ~30-45
+    min on real device — Maestro pays back its setup cost on
+    the second run.
+
 ### App Store / Play Store preparation
 
 7. **Decide branded display name** (DESIGN.md § Open Q3 lock here).
@@ -95,22 +134,35 @@ App is on TestFlight (iOS) and Play Console internal testing track
    PROJECT_STATE.md Open decisions. Pick reverse-DNS aligned with
    the branded display name.
 
-### Auth provider activation (deferred from Phase 3)
+### Auth provider activation (partial close — see Phase 6 update)
 
-Phase 3 wired email/password only. The locked Trigger 1 decision
-(2026-04-30) is Apple + Google + Email at v1; configuration
-deferred to here because both Apple and Google OAuth clients tie
-to artifacts that don't exist until this phase (Apple Developer
-Program enrollment, locked bundleIdentifier, EAS-generated SHA-1
-keystore fingerprint). See PROJECT_STATE.md cross-phase issue
-"Apple Sign In + Google Sign In configuration deferred to Phase 10"
-for the full rationale.
+**Status update 2026-05-13** (Phase 6 implementation):
 
-7a. **Apple Developer Program enrollment** ($99/yr) — gateway for
-    both Apple Sign In and TestFlight. Allow 1-2 business days for
-    Apple to activate the account.
+- **Apple Sign In native side DONE in Phase 6** —
+  `expo-apple-authentication` + `ios.usesAppleSignIn: true`
+  capability + AuthScreen wired via
+  `supabase.auth.signInWithIdToken({ provider: 'apple' })`. Apple
+  Dev Program activated 2026-05-12. Remaining Phase 10 work for
+  Apple is **only step 7b below** (Service ID + Client Secret +
+  Supabase dashboard enable). Step 7a (Apple Dev enrollment)
+  already done; step 7d's Apple SDK install no longer needed.
+- **Google Sign In: still both sides deferred to Phase 10** — Phase 6
+  ships an Alert stub. The Phase 10 work for Google is unchanged:
+  steps 7c + 7d-Google + 7e-Google below.
 
-7b. **Apple Sign In setup:**
+The original cross-phase rationale ("OAuth clients tie to artifacts
+that don't exist until this phase") still applies to Google (needs
+SHA-1 from production EAS keystore + locked bundleIdentifier).
+Apple shed those dependencies once the Dev Program activated +
+bundleIdentifier locked at 2026-05-04.
+
+7a. ~~Apple Developer Program enrollment~~ — **DONE 2026-05-12**.
+    Activation took the "likely 2-7d" branch of the projected
+    enrollment window. TestFlight access live.
+
+7b. **Apple Sign In Supabase-dashboard setup** (still required;
+    full step-by-step recipe also in PROJECT_STATE.md Phase 6
+    Current phase block):
     - Apple Developer Console → Certificates, IDs & Profiles →
       Identifiers → register an App ID matching the locked
       `bundleIdentifier`, with "Sign In with Apple" capability
@@ -139,16 +191,18 @@ for the full rationale.
       enable + paste Web Client ID + iOS Client ID + Android
       Client ID
 
-7d. **RN app: install OAuth SDKs and wire to Supabase:**
+7d. **RN app: install Google OAuth SDK and wire to Supabase**
+    (Apple SDK already installed at Phase 6 — `expo-apple-
+    authentication`):
     ```bash
-    pnpm add @invertase/react-native-apple-authentication
     pnpm add @react-native-google-signin/google-signin
     pnpm exec expo prebuild --clean
     ```
-    Wire to the auth UI built at Phase 6 —
-    `supabase.auth.signInWithIdToken({ provider: 'apple' | 'google',
-    token: <id_token> })`. Email/password from Phase 3 stays as a
-    fallback path (account-recovery + dev testing).
+    Replace `handleProviderStub('Google')` in
+    `src/auth/AuthScreen.tsx` with the real
+    `supabase.auth.signInWithIdToken({ provider: 'google',
+    token: <id_token> })` call. Email/password from Phase 6 stays
+    as a fallback path (account-recovery + dev testing).
 
 7e. **Verification:**
     - Apple Sign In end-to-end on iOS Simulator (Mac required) OR

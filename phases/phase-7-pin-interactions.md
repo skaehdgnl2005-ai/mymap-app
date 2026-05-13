@@ -27,6 +27,30 @@ visited toggle, color tag picker, color filter activation.
 - Phase 4 complete: PersonalMap component renders pins
 - Phase 6 complete: real auth user, real saved places in DB
 
+## Risk-tier eval (do this FIRST at kickoff)
+
+Per PROJECT_STATE.md § Verification Principles → Risk-tier triage,
+size the smoke test to the actual risk surface, not a fixed protocol.
+
+**Phase 7 expected tier: MEDIUM.** Justification:
+- New native modules? Likely YES — `react-native-reanimated` (if not
+  already there), `@gorhom/bottom-sheet`, possibly `react-native-gesture-
+  handler` upgrade. Triggers HIGH-baseline.
+- But: existing rendered surface (just adding interactions), no new
+  permissions, no cold-boot/auth changes, no new external API.
+  Downgrade-one-tier qualifier applies.
+- Final: MEDIUM. Smoke test = emulator dev-client, exercise the new
+  surface (tap-to-expand, long-press menu, visited toggle, color
+  filter) on 3-4 representative pins. ~10 min total.
+
+**If during implementation any of these conditions change**,
+upgrade to HIGH and plan EAS rebuild + real-device:
+- Adding a permission string (currently no plan to)
+- Touching auth or cold-boot routing
+- Discovering a Reanimated 3 native crash that needs real-device repro
+
+Record the actual tier in the Status block when the phase wraps.
+
 ## This phase's goal
 
 All pin interactions per D9/D11 work end-to-end:
