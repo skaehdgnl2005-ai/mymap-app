@@ -126,6 +126,49 @@ function stripBoldTags(s: string): string {
   return s.replace(/<\/?b>/gi, '');
 }
 
+// Phase 10 — surface-quality error handling.
+//
+// Banner UI in SaveModal + SearchBar displays `error.message` verbatim;
+// previously that meant the user saw "Naver search HTTP 429" or "Network
+// request failed" in raw English. Map HTTP status → Korean.
+//
+// 429 (rate limit) + 5xx (transient server) get a single retry after 1s.
+// 4xx (excluding 429) are client/permission errors — retrying produces
+// the same result, so surface immediately.
+//
+// Default Node/RN fetch has no timeout; on a hung response the search bar
+// would spin indefinitely. AbortController gives a 5s ceiling per attempt.
+function naverErrorMessageForStatus(status: number): string {
+  if (status === 401) return '인증 오류가 발생했어요. 잠시 후 다시 시도해주세요.';
+  if (status === 403) return '검색 권한 오류가 발생했어요.';
+  if (status === 429) return '검색 요청이 많아요. 잠시 후 다시 시도해주세요.';
+  if (status >= 500 && status < 600) {
+    return 'Naver 서버가 불안정해요. 잠시 후 다시 시도해주세요.';
+  }
+  return `검색에 실패했어요 (HTTP ${status})`;
+}
+
+const NAVER_FETCH_TIMEOUT_MS = 5000;
+const NAVER_RETRY_WAIT_MS = 1000;
+
+async function fetchNaver(url: string, headers: HeadersInit): Promise<Response> {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), NAVER_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { headers, signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function fetchNaverWithRetry(url: string, headers: HeadersInit): Promise<Response> {
+  const first = await fetchNaver(url, headers);
+  const transient = first.status === 429 || (first.status >= 500 && first.status < 600);
+  if (!transient) return first;
+  await new Promise<void>((r) => setTimeout(r, NAVER_RETRY_WAIT_MS));
+  return fetchNaver(url, headers);
+}
+
 // Korea bounding box sanity check. If WGS84 conversion of mapx/mapy
 // lands outside Korea, fail fast — that means Naver changed format
 // (e.g. reverted to KATECH) and the client needs a doc + fix, not a
@@ -151,14 +194,22 @@ export async function naverSearchByKeyword(
 
   let res: Response;
   try {
-    res = await fetch(`${NAVER_BASE}/local.json?${params.toString()}`, {
-      headers: naverHeaders(),
-    });
+    res = await fetchNaverWithRetry(
+      `${NAVER_BASE}/local.json?${params.toString()}`,
+      naverHeaders(),
+    );
   } catch (e) {
-    return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
+    // AbortError on timeout, plain network error otherwise. Both surface
+    // to the user as a Korean banner; technical detail goes to console.
+    const isTimeout = e instanceof Error && e.name === 'AbortError';
+    const msg = isTimeout
+      ? '네트워크가 느려요. 인터넷 연결을 확인해주세요.'
+      : '인터넷 연결을 확인해주세요.';
+    if (e instanceof Error) console.warn('[naver] fetch failed:', e.message);
+    return { data: null, error: new Error(msg) };
   }
   if (!res.ok) {
-    return { data: null, error: new Error(`Naver search HTTP ${res.status}`) };
+    return { data: null, error: new Error(naverErrorMessageForStatus(res.status)) };
   }
   const json = (await res.json()) as NaverSearchApiResponse;
 

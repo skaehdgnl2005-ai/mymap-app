@@ -52,3 +52,6 @@ build-*.log
 # Claude Code runtime artifacts (scheduled task locks, etc.) — never
 # user-meaningful, never reproducible across machines.
 /.claude/
+
+
+.idea/

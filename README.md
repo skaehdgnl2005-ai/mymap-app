@@ -1,12 +1,22 @@
-# Personal-Curated-Map Spec — v1
+# mymap — 인스타·스레드에서 본 장소를 저장하고 다시 찾는 개인 큐레이션 지도
 
-A Toss-style minimal map for Korean Gen Z users to save and revisit places
-they discover on Instagram, Threads, and Naver/Kakao Place pages.
+> A Toss-style minimal map for Korean Gen Z to save and revisit places they discover on Instagram, Threads, and Naver/Kakao Place pages. Expo + Mapbox with a hand-written light/dark style spec, Supabase backend, share-extension intake.
 
-This folder is the **implementation-ready spec** produced by `/office-hours`
-on 2026-04-26. It is *configuration and design tokens*, not a working app —
-drop it into your React Native project, host the assets, and your map renders
-with all v1 visual + interaction decisions intact.
+**한 줄로**: SNS에서 "여기 가보고 싶다" 한 장소를 공유 버튼 한 번으로 내 지도에 핀으로 꽂고, 나중에 지도에서 다시 찾는 앱. 디자인 시스템(토큰·Mapbox 스타일 라이트/다크)을 먼저 확정하고 그 위에 앱을 올렸다.
+
+## 상태
+- Phase 1~6 완료(지도 렌더·저장 플로우·공유 인텐트·OG 해석 엣지 함수·런타임 스모크 검증). Phase 7~10은 `phases/`에 계획만 있다.
+- 자동화 테스트는 없다. 검증은 Phase별 수동 스모크 체크리스트(`phases/*.md`)와 `cross-review/` 교차 리뷰로 했다.
+- Supabase 마이그레이션 2개(초기 스키마, OG 리졸버 레이트리밋). `eas.json` dev-client 빌드 구성.
+- 아래는 v1 디자인·구성 스펙 원문이다.
+
+---
+
+## Personal-Curated-Map Spec — v1
+
+This folder started as the **implementation-ready spec** produced on 2026-04-26
+(configuration and design tokens) and now also contains the React Native app
+built on top of it (`App.tsx`, `src/`).
 
 ---
 

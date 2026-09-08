@@ -31,6 +31,15 @@ import {
 
 import type { KakaoPlaceResult, SavedPlace, SavedPlaceCategory } from '../../spec/data-shapes';
 import { inferCategoryFromKakao } from '../../spec/data-shapes';
+// Provider client swap per DESIGN.md D5b (Kakao Local API blocked by
+// 사업자 등록 access constraint at v1; Naver Open API used as v1
+// fallback). When biz-reg becomes viable, swap this line back to
+// '../kakao/client' (kakao client preserved in repo for that path)
+// and revert function calls below: naverSearchByKeyword →
+// kakaoSearchByKeyword.
+import { naverSearchByKeyword, resolvePlaceFromUrl } from '../naver/client';
+import { savePlace, type NewSavedPlace } from '../places/repo';
+import type { ClassifiedUrl } from './url-classifier';
 
 // User-selectable categories in the save-flow modal (non-anchor only — anchors
 // are set in Phase 6 onboarding, not via share-flow). Order = visual chip
@@ -72,15 +81,6 @@ const CATEGORY_SEARCH_KEYWORDS: Record<SavedPlaceCategory, string> = {
   SCHOOL: '',
   WORK: '',
 };
-// Provider client swap per DESIGN.md D5b (Kakao Local API blocked by
-// 사업자 등록 access constraint at v1; Naver Open API used as v1
-// fallback). When biz-reg becomes viable, swap this line back to
-// '../kakao/client' (kakao client preserved in repo for that path)
-// and revert function calls below: naverSearchByKeyword →
-// kakaoSearchByKeyword.
-import { naverSearchByKeyword, resolvePlaceFromUrl } from '../naver/client';
-import { savePlace, type NewSavedPlace } from '../places/repo';
-import type { ClassifiedUrl } from './url-classifier';
 
 interface Props {
   visible: boolean;

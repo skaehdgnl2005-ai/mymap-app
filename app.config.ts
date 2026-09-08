@@ -22,7 +22,10 @@ const config: ExpoConfig = {
   splash: {
     image: './assets/splash-icon.png',
     resizeMode: 'contain',
-    backgroundColor: '#ffffff',
+    // brand_indigo per DESIGN.md D9 — matches icon.png + adaptive icon bg
+    // so cold-boot reads as a single branded surface, not a colored square
+    // letterboxed on white.
+    backgroundColor: '#2D2A6B',
   },
   ios: {
     supportsTablet: true,
@@ -43,7 +46,10 @@ const config: ExpoConfig = {
   android: {
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
-      backgroundColor: '#ffffff',
+      // brand_indigo per DESIGN.md D9. The foregroundImage is white-on-
+      // transparent so Android can composite the brand background under
+      // any launcher mask (circle / squircle / teardrop) without halo.
+      backgroundColor: '#2D2A6B',
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,

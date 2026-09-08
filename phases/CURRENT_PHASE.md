@@ -1,176 +1,360 @@
-# Phase 7: Pin Interactions + States
+# Phase 10: Polish + Beta
 
 **Detail level:** Medium (expand at kickoff if you want full detail)
-**Estimated duration:** 3-4 working days
+**Estimated duration:** 5-7 working days
 
 ## Project context
 
-Make pins fully interactive per the locked D9/D10/D11 spec. After
-this phase, users can mark places visited, change color tags, filter
-by color, and the pin animations match the 200ms spring spec.
+Final phase before TestFlight / Play Store internal testing track.
+All features built. Now we (a) verify the app holds together at scale
++ edge cases, (b) prepare App Store metadata + privacy disclosures,
+(c) recruit beta testers, (d) ship to TestFlight.
 
-Phase 5 had a basic "tap → console.log" handler. Phase 7 makes it
-real: tap-to-expand circle→teardrop, long-press for quick-action menu,
-visited toggle, color tag picker, color filter activation.
+This phase is mostly NOT building — it's testing, fixing edge cases,
+writing copy, and submitting. The bar isn't "perfect" — it's "the
+named user (founder's friend) can use it for a week without the app
+crashing or losing her data, and 3 other beta testers can install it
+without help."
 
 ## Locked decisions referenced
 
-- DESIGN.md § D9 Marker Shapes: tap-to-expand 200ms spring; visited =
-  outlined indigo; color_tag default hidden, activates as fill on
-  filter
-- DESIGN.md § D11 Mobile Interactions: long-press = quick-action menu
-- `spec/tokens.json` § motion: spring_default = 200ms, tension 300,
-  friction 24
+- DESIGN.md § Distribution Plan: App Store + Play Store, EAS Build,
+  TestFlight
+- DESIGN.md § Success Criteria: 30+ users week 4 with ≥10 saved
+  places each, no perf degradation at 50+ pins, screenshot
+  recognizable as "MyMap"
+- DESIGN.md § Open Questions Q3: branded display name (lock here)
+- README.md § Migration checklist: deferred to post-PMF; not in scope
 
 ## Prerequisites from previous phases
 
-- Phase 4 complete: PersonalMap component renders pins
-- Phase 6 complete: real auth user, real saved places in DB
-
-## Risk-tier eval (do this FIRST at kickoff)
-
-Per PROJECT_STATE.md § Verification Principles → Risk-tier triage,
-size the smoke test to the actual risk surface, not a fixed protocol.
-
-**Phase 7 expected tier: MEDIUM.** Justification:
-- New native modules? Likely YES — `react-native-reanimated` (if not
-  already there), `@gorhom/bottom-sheet`, possibly `react-native-gesture-
-  handler` upgrade. Triggers HIGH-baseline.
-- But: existing rendered surface (just adding interactions), no new
-  permissions, no cold-boot/auth changes, no new external API.
-  Downgrade-one-tier qualifier applies.
-- Final: MEDIUM. Smoke test = emulator dev-client, exercise the new
-  surface (tap-to-expand, long-press menu, visited toggle, color
-  filter) on 3-4 representative pins. ~10 min total.
-
-**If during implementation any of these conditions change**,
-upgrade to HIGH and plan EAS rebuild + real-device:
-- Adding a permission string (currently no plan to)
-- Touching auth or cold-boot routing
-- Discovering a Reanimated 3 native crash that needs real-device repro
-
-Record the actual tier in the Status block when the phase wraps.
+- Phases 1-9 complete (or at least Phases 1-7 + decision to defer
+  search overlay to v1.5; Phase 8 popover NOT optional — it's how
+  users interact with their saved places)
+- Phase 5 validation passed and confirmed
 
 ## This phase's goal
 
-All pin interactions per D9/D11 work end-to-end:
-- Single tap on saved pin: animate circle → teardrop (200ms spring),
-  expanded state visible until tap elsewhere
-- Single tap on cluster: smooth zoom-in 350ms
-- Long-press on saved pin: quick-action menu (visited toggle, color
-  tag picker, delete, share)
-- Visited toggle: pin animates from filled → outlined (or vice versa)
-- Color filter: bottom-sheet filter UI; matching pins use tag color
-  as fill, non-matching fade to 30% opacity
-- Anchors don't morph on tap (per D9 lock — address IS position)
+App is on TestFlight (iOS) and Play Console internal testing track
+(Android), with:
+- 3+ beta testers installed and actively using
+- App Store + Play Store metadata complete (screenshots, description,
+  privacy policy, age rating)
+- Performance verified at 50+ saved pins (no jank, no FPS drops)
+- Critical error states handled (offline, sync conflict, API failure,
+  permission denied)
+- Crash rate during internal testing < 1%
 
 ## Concrete tasks
 
-1. **Tap-to-expand animation** for saved pins:
-   - Use Reanimated 3 worklets for 200ms spring
-   - Default state: 18×18 circle, indigo fill
-   - Expanded state: 28×34 teardrop, indigo fill, halo widens to 2px
-   - Anchor pins: scale 24→36 only, no shape morph
+### Performance + reliability
 
-2. **Cluster zoom-in animation:**
-   - 350ms ease-out per D10 lock
-   - Camera fits cluster bounds at new zoom
-   - If still clustered after 3 successive taps → fitBounds to all
-     children at viewport zoom
+1. **Performance test at 50+ pins:**
+   - Generate 50 mock pins across Seoul (simulating power user)
+   - Measure FPS during pan/zoom (target: 60fps on iPhone 13+, 30fps
+     min on iPhone 11)
+   - Profile with Xcode Instruments / Android Profiler if FPS drops
+   - Common culprits: ShapeSource updates not batched, image cache
+     thrashing, animation worklets running on JS thread
 
-3. **Long-press handler** — wrap MapView in `LongPressGestureHandler`
-   from react-native-gesture-handler. On long-press, query rendered
-   features at point, find the pin, show quick-action sheet:
+2. **Performance test at 200+ pins** (cluster behavior):
+   - At zoom 12-13, ensure clustering keeps render cost flat
+   - Verify cluster bubbles render correctly at high pin density
 
-   ```
-   ┌────────────────────────┐
-   │  스타벅스 성수점         │
-   │  ─────────────────     │
-   │  ☐ 다녀왔어요  (toggle) │
-   │  🎨 색상 태그           │
-   │  📤 공유               │
-   │  🗑  삭제               │
-   └────────────────────────┘
-   ```
+3. **Offline mode:**
+   - App should open and show last-synced pins offline
+   - Save flow should queue saves and sync when online
+   - Use AsyncStorage or MMKV for offline queue
+   - Show toast "오프라인 — 저장하면 인터넷 연결 시 동기화됩니다"
 
-   Use a bottom sheet library (`@gorhom/bottom-sheet` recommended).
+4. **Sync conflict handling:**
+   - Two devices edit same pin (unlikely but possible) — last write
+     wins or merge?
+   - For v1: last write wins (simplest); document decision
 
-4. **Visited toggle:**
-   - Updates `visited: true/false` + `visited_at` timestamp via
-     `places/repo.ts updatePlace()`
-   - Pin animates from filled (filled-pin sprite) → outlined
-     (outlined-pin sprite); see Phase 4 SymbolLayer expression
-   - Optimistic UI update — animate immediately, sync to backend in
-     background, rollback on error
+5. **Error states:**
+   - Kakao API rate limit hit (429): show toast, retry exponential
+     backoff
+   - Mapbox tile load failure: show "지도를 불러올 수 없어요" with retry
+   - Supabase auth expired: silent refresh; if refresh fails, prompt
+     re-login
+   - OG fetch timeout: gracefully degrade to bare URL
 
-5. **Color tag picker:**
-   - 7-color row (RED through PURPLE) plus NONE
-   - Tap → updates `color_tag`
-   - Default view: pins still render in indigo (no visual change yet)
-   - "변경됨" toast on save
+6. **Permission denied flows:**
+   - Location: toast + settings deep-link (already in Phase 6)
+   - Camera (if used in v1.5): same pattern
+   - Photo library (if used in v1.5): same pattern
 
-6. **Color filter UI:**
-   - Floating filter button bottom-left of map (mirror to My Location
-     bottom-right)
-   - Tap → bottom sheet with same 7 colors
-   - Tap a color → activates filter:
-     - Matching pins render with tag color as fill
-     - Non-matching pins fade to 30% opacity
-     - Anchors unaffected (always full opacity)
-   - Tap same color again → de-activates filter, returns to default
-     all-indigo
+6b. **Maestro E2E test suite** (added 2026-05-13 per the
+    Verification Principles → Risk-tier triage subsection in
+    PROJECT_STATE.md):
 
-7. **Color tag indicator in popover only** (per D10 R3 lock):
-   - When pin tapped → popover shows 12×12 color chip next to place
-     name (indicates tag exists)
-   - NO 4px dot on the pin itself
+    Install Maestro (open-source RN E2E framework) and write a
+    happy-path walkthrough for the core flows. Goal: turn the
+    "13-item manual smoke test" into a 2-min auto-run so
+    subsequent verification cycles cost minutes not hours.
 
-8. **Selected state persistence:** if pin selected then user zooms
-   out below pin's layer minzoom, pin stays rendered (smaller size at
-   far-out zooms)
+    ```bash
+    # Maestro install (one-time, host machine):
+    curl -Ls "https://get.maestro.mobile.dev" | bash
 
-9. **Test all interactions** at multiple zoom levels.
+    # Flow file structure (.maestro/):
+    #   auth-signup.yaml    → email signup → onboarding Step 1
+    #   onboarding-home.yaml → HOME save → map with pin
+    #   onboarding-skip.yaml → both skips → empty map + hint
+    #   save-flow-auto.yaml  → share Naver URL → save card → save
+    #   save-flow-manual.yaml → clipboard Instagram URL → search → save
+    #   pin-tap.yaml         → tap pin → popover (Phase 7+)
+    #   pin-visited.yaml     → long-press → mark visited (Phase 7+)
+    ```
+
+    Each flow file is YAML, ~10-30 lines, declarative
+    (`tapOn: 'HOME 추가'`, `inputText: 'me@example.com'`).
+    Maestro reads accessibility labels which we already have
+    (Phase 6's `accessibilityLabel="장소 추가"` etc.) — no
+    test-id ceremony required.
+
+    Run locally during dev: `maestro test .maestro/`. Add to
+    EAS Build hooks for CI runs against the simulator artifact.
+
+    **Coverage target for Phase 10:** the original 13-item
+    Phase 6 smoke list + Phase 5's 5-path save-flow validation +
+    Phase 7+ pin interactions = ~25 happy-path items, all
+    auto-run in <3 min. The same 25 items manually take ~30-45
+    min on real device — Maestro pays back its setup cost on
+    the second run.
+
+### App Store / Play Store preparation
+
+7. **Decide branded display name** (DESIGN.md § Open Q3 lock here).
+   Goes in app.json `expo.name` and surfaces in iOS share menu +
+   Android intent picker. **Also lock `ios.bundleIdentifier` +
+   `android.package` here** (currently placeholder
+   `com.gachi2026.mymap`). Both are immutable once published — see
+   PROJECT_STATE.md Open decisions. Pick reverse-DNS aligned with
+   the branded display name.
+
+### Auth provider activation (partial close — see Phase 6 update)
+
+**Status update 2026-05-13** (Phase 6 implementation):
+
+- **Apple Sign In native side DONE in Phase 6** —
+  `expo-apple-authentication` + `ios.usesAppleSignIn: true`
+  capability + AuthScreen wired via
+  `supabase.auth.signInWithIdToken({ provider: 'apple' })`. Apple
+  Dev Program activated 2026-05-12. Remaining Phase 10 work for
+  Apple is **only step 7b below** (Service ID + Client Secret +
+  Supabase dashboard enable). Step 7a (Apple Dev enrollment)
+  already done; step 7d's Apple SDK install no longer needed.
+- **Google Sign In: still both sides deferred to Phase 10** — Phase 6
+  ships an Alert stub. The Phase 10 work for Google is unchanged:
+  steps 7c + 7d-Google + 7e-Google below.
+
+The original cross-phase rationale ("OAuth clients tie to artifacts
+that don't exist until this phase") still applies to Google (needs
+SHA-1 from production EAS keystore + locked bundleIdentifier).
+Apple shed those dependencies once the Dev Program activated +
+bundleIdentifier locked at 2026-05-04.
+
+7a. ~~Apple Developer Program enrollment~~ — **DONE 2026-05-12**.
+    Activation took the "likely 2-7d" branch of the projected
+    enrollment window. TestFlight access live.
+
+7b. **Apple Sign In Supabase-dashboard setup** (still required;
+    full step-by-step recipe also in PROJECT_STATE.md Phase 6
+    Current phase block):
+    - Apple Developer Console → Certificates, IDs & Profiles →
+      Identifiers → register an App ID matching the locked
+      `bundleIdentifier`, with "Sign In with Apple" capability
+    - Create a Services ID (separate from the App ID) for the web
+      callback flow Supabase uses
+    - Set return URL on the Services ID:
+      `https://<ref>.supabase.co/auth/v1/callback`
+    - Generate a `.p8` private key (one-time download — store
+      securely; lost keys can't be re-downloaded)
+    - Generate the Client Secret JWT signed with the `.p8` key
+      (Supabase docs include the script; Client Secret expires
+      every 6 months and must be regenerated — set a calendar
+      reminder)
+    - Supabase dashboard → Authentication → Providers → Apple →
+      enable + paste Services ID + Client Secret + key id + team id
+
+7c. **Google Sign In setup (iOS + Android clients):**
+    - Google Cloud Console → APIs & Services → Credentials → create
+      an iOS OAuth client (with the locked `bundleIdentifier`)
+    - Create an Android OAuth client (requires the SHA-1 cert
+      fingerprint from EAS; get it via
+      `pnpm exec eas credentials --platform android` after first
+      Android EAS build, NOT before — placeholder cert won't work)
+    - Create a Web OAuth client (for the Supabase callback)
+    - Supabase dashboard → Authentication → Providers → Google →
+      enable + paste Web Client ID + iOS Client ID + Android
+      Client ID
+
+7d. **RN app: install Google OAuth SDK and wire to Supabase**
+    (Apple SDK already installed at Phase 6 — `expo-apple-
+    authentication`):
+    ```bash
+    pnpm add @react-native-google-signin/google-signin
+    pnpm exec expo prebuild --clean
+    ```
+    Replace `handleProviderStub('Google')` in
+    `src/auth/AuthScreen.tsx` with the real
+    `supabase.auth.signInWithIdToken({ provider: 'google',
+    token: <id_token> })` call. Email/password from Phase 6 stays
+    as a fallback path (account-recovery + dev testing).
+
+7e. **Verification:**
+    - Apple Sign In end-to-end on iOS Simulator (Mac required) OR
+      EAS preview build on a physical iPhone
+    - Google Sign In on Android emulator/device
+    - Verify both create rows in `auth.users` and that RLS still
+      isolates: a place inserted by an Apple-signed user must be
+      invisible to a Google-signed user with a different
+      `auth.uid()` (re-run an adapted version of
+      `scripts/test-phase3-e2e.mjs` against cloud with the new
+      provider tokens)
+    - Email/password keeps working as fallback
+
+KakaoTalk login stays deferred to **v1.5** per the locked Trigger 1
+decision (see PROJECT_STATE.md "Open decisions"). The v1.5
+addition path: Supabase dashboard → Auth → Providers → Kakao
+(natively supported, just enable); `pnpm add
+@react-native-seoul/kakao-login`; use
+`supabase.auth.linkIdentity({ provider: 'kakao' })` to merge any
+email-account collisions; bump age rating from 4+ to 12+ per
+RELEASE_CHECKLIST Trigger 5.
+
+8. **App Store screenshots** (required: 6.7", 6.5", 5.5" iPhone +
+   12.9" iPad if iPad supported):
+   - Map with HOME + 5 saved pins (Seoul-recognizable)
+   - Save flow modal (Naver Place auto-resolve)
+   - Pin detail popover (with OG card)
+   - Color filter activated
+   - Use Korean text in screenshots
+
+9. **App Store description** (Korean primary, English secondary):
+   - Headline: ~30 chars
+   - Subtitle: ~30 chars
+   - Description: ~4000 chars max but ~500 chars effective
+   - Keywords: ~100 chars
+   - All in Korean per primary market
+
+10. **Privacy policy + Terms of Service:**
+    - Required for App Store submission
+    - Korean PIPA compliance (개인정보처리방침)
+    - GDPR mentions (data subject rights)
+    - Disclose: location data (only when My Location used), saved
+      places (user data, owned by user, exportable in v1.5)
+    - Host on a static page (Notion, Cloudflare Pages, GitHub Pages)
+    - URL goes in app.json + App Store Connect
+
+11. **App Store privacy disclosures** (Apple's "Nutrition Label"):
+    - Location: collected, used for app functionality, NOT linked
+      to identity
+    - User content (saved places): collected, linked to identity,
+      used for app functionality
+    - Identifiers (user_id from auth): collected, linked to identity,
+      used for analytics (if any) + app functionality
+    - Be conservative — over-disclose rather than under-disclose
+
+12. **Age rating:** 4+ (no objectionable content) unless KakaoTalk
+    login surfaces age-gated content (then 12+).
+
+13. **App icon:** 1024×1024 PNG, no transparency. Brand_indigo
+    background with white M (or your chosen mark). 9 copies for
+    Android adaptive icon (foreground + background).
+
+### Beta testing
+
+14. **Build for TestFlight via EAS:**
+    ```bash
+    eas build --platform ios --profile preview
+    eas submit --platform ios
+    ```
+
+15. **Build for Play Console internal testing via EAS:**
+    ```bash
+    eas build --platform android --profile preview
+    eas submit --platform android --track internal
+    ```
+
+16. **Recruit beta testers:** the named user (validation friend) +
+    2-3 others matching demographic (Korean Gen Z, Instagram-cafe-
+    screenshot habit). Send TestFlight invite + Play internal test
+    link.
+
+17. **Set up basic analytics** (optional in v1):
+    - Sentry for crash reporting (highly recommended)
+    - Mixpanel or PostHog for funnel analytics (save flow completion
+      rate, time to first save, etc.) — optional
+    - NO third-party SDKs that aren't disclosed in privacy policy
+
+18. **Collect beta feedback** for one week:
+    - Daily check-in messages with each tester
+    - Track crashes via Sentry
+    - Track bugs / UX issues in a simple tracker (Notion / GitHub
+      Issues)
+
+19. **Critical-bug fixes:** address P0 (crashes, data loss, login
+    broken) bugs immediately. Defer P1 (annoying but workable) to
+    v1.1.
 
 ## Verification
 
-- [ ] Tap saved pin → expand animation runs at 200ms, smooth
-- [ ] Tap anchor pin → scale only, no shape morph
-- [ ] Tap empty map → all selections clear
-- [ ] Long-press → quick-action sheet appears with 4 actions
-- [ ] Visited toggle: filled ↔ outlined transition
-- [ ] Color tag set: persists across app restart (DB write confirmed)
-- [ ] Color filter: matching pins colored, non-matching faded
-- [ ] Filter de-activates correctly
-- [ ] No 4px dot on pin (popover-only color indicator per lock)
-- [ ] Cluster tap zooms in 350ms ease-out
-- [ ] Selected pin stays rendered when zooming out
+- [ ] App builds for iOS + Android via EAS without errors
+- [ ] TestFlight invite accessible
+- [ ] Play internal test track has APK uploaded + ≥3 testers added
+- [ ] All testers installed successfully
+- [ ] No P0 crashes in first 48 hours of beta
+- [ ] Performance acceptable on 2 generations of devices each
+      platform (target: iPhone 13 + iPhone 15 minimum, mid-range
+      Android + flagship)
+- [ ] Privacy policy + ToS published and linked
+- [ ] App Store metadata complete and submitted for review
+- [ ] Sentry crash reporting active (or alternative)
 
 ## Anti-patterns
 
-- Do NOT use opacity for visited state (reads as broken per D9 R2)
-- Do NOT use color_tag as default pin fill (violates D8 quiet-base
-  thesis per D10 R3 lock)
-- Do NOT animate cluster bubble size based on count (variable size
-  competes with anchors-vs-saved hierarchy per D10 lock)
-- Do NOT add hover states (mobile-only per D11)
-- Do NOT enable rotate (disabled per D11 lock)
+- Do NOT submit to App Store before TestFlight beta (Apple wants to
+  see user testing before public release)
+- Do NOT skip privacy disclosures (rejection guarantee)
+- Do NOT use placeholder screenshots / Lorem ipsum text in App Store
+  metadata
+- Do NOT add "TestFlight" or "beta" branding to the actual app
+  (TestFlight builds are auto-marked by Apple; don't double-mark)
+- Do NOT enable production analytics SDKs without privacy disclosure
 
 ## Handoff
 
 When complete, update PROJECT_STATE.md with:
-- Animation library used (Reanimated 3 recommended)
-- Bottom sheet library used
-- Spring timing verified at 200ms across all transitions
-- Performance baseline at this phase (FPS during animations)
+- TestFlight build number + URL (if shareable)
+- Play Console internal test link
+- Privacy policy + ToS URLs (locked)
+- Branded display name (locked, DESIGN.md § Open Q3 resolved)
+- Beta tester count + active percentage
+- Sentry project URL
+- Crash rate observed (target <1%)
+- Any deferred features moved to v1.1 backlog
 
-Then: `ln -sf phase-8-pin-popover.md phases/CURRENT_PHASE.md`
+Then: project is at v1 beta. Next steps are NOT a phase — they're
+operational:
+- Monitor TestFlight feedback for 1-2 weeks
+- Iterate on P1 bugs
+- Submit to App Store + Play Store production when ready
+- Begin v1.1 planning (data export, OG fetcher reliability,
+  optional Korean NLP for Notes-paste import)
 
 ## Expansion hints
 
 For full detail:
-- Reanimated 3 worklet patterns for spring animation
-- Optimistic UI rollback patterns when DB write fails
-- Color tag accessibility (color-blind users need a non-color
-  affordance — text label in popover handles this)
-- Hit-testing pin tap at small sizes (18px circle is below Apple's
-  44pt minimum tap target — extend hitSlop)
+- EAS Build profile configuration (preview vs production, env vars,
+  build credentials)
+- App Store Connect step-by-step (Apple-specific gotchas: bundle ID,
+  ATS exception for Mapbox HTTP fallback, iCloud capability)
+- Privacy policy template adapted for Korean PIPA + GDPR
+- TestFlight beta tester limits (10,000 max external testers, 100
+  internal)
+- Sentry React Native integration + source maps
+- Common rejection reasons for map apps (location justification
+  string in Info.plist, attribution placement)

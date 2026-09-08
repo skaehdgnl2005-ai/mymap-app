@@ -9,6 +9,37 @@ with rationale.
 
 ---
 
+## 2026-05-17 — Mapbox `logoEnabled` flipped to `true` (TOS compliance)
+
+Phase 10 kickoff TOS audit (research agent fetched Mapbox's attribution
+docs). Verbatim findings:
+
+- **Android (Maps SDK):** "By default, the Mapbox logo and information
+  button are located on the bottom left of the map. You may move these
+  elements to a different position, but they must stay on the map view."
+  → wordmark required unconditionally.
+- **iOS (Maps SDK):** info button optional, but if disabled "you must
+  include attribution on the map in a text format. The attribution must
+  include `© Mapbox` as a link to `https://www.mapbox.com/`." The
+  `@rnmapbox/maps` v10 attribution renderer does not guarantee the
+  click-through link, so the iOS carve-out is not safely usable.
+
+The 3× boot warning `[maps-android\MbxLogo]: The Mapbox logo wordmark
+must remain enabled in accordance with our Terms of Service` was an
+accurate compliance signal from the SDK runtime, not cosmetic noise.
+
+Changes:
+
+- `spec/implementation.tsx` line 88: `logoEnabled={false}` →
+  `logoEnabled={true}`; comment updated.
+- Production code mirror in `src/map/PersonalMap.tsx` flipped in the
+  same commit.
+
+PROJECT_STATE.md cross-phase entry "Mapbox `MbxLogo`" reclassified from
+ACTIVE compliance gate to RESOLVED.
+
+---
+
 ## 2026-05-03 — Path A patch: align with mapbox-streets-v8 schema
 
 Phase 4 visual verification revealed that the initial spec was authored

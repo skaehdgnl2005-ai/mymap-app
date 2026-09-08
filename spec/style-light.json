@@ -403,6 +403,36 @@
         "text-halo-color": "#FAFAFA",
         "text-halo-width": 1.5
       }
+    },
+
+    {
+      "id": "DEBUG-place-label-class-overlay",
+      "_comment": "TEMPORARY diagnostic — added 2026-05-13 to identify the actual `class` value used by Mapbox v8 Korean tile data for 구 (강남구 등). Filter-broadening attempts (settlement_subdivision/suburb/city/town/locality) haven't surfaced 구 labels, so we don't actually know what to filter on. This layer renders EVERY place_label feature at z 9-14 with the name + class in red so the class can be read directly off the screen. REMOVE in next round once the 구 class is identified and the production filter is locked.",
+      "type": "symbol",
+      "source": "composite",
+      "source-layer": "place_label",
+      "minzoom": 9,
+      "maxzoom": 14,
+      "layout": {
+        "text-field": [
+          "concat",
+          ["coalesce", ["get", "name:ko"], ["get", "name"], "?"],
+          "\n[",
+          ["coalesce", ["get", "class"], "no-class"],
+          "]"
+        ],
+        "text-font": ["Pretendard Medium"],
+        "text-size": 11,
+        "text-max-width": 12,
+        "text-padding": 2,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true
+      },
+      "paint": {
+        "text-color": "#E5564B",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 2
+      }
     }
   ]
 }

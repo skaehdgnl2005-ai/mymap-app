@@ -85,8 +85,8 @@ export const PersonalMap: React.FC<Props> = ({
     <MapView
       style={{ flex: 1 }}
       styleURL={styleURL}
-      logoEnabled={false}        // Mapbox logo handled per attribution rules
-      attributionEnabled={true}  // legally required; positioned bottom-right by default
+      logoEnabled={true}         // TOS-required wordmark (2026-05-17 audit)
+      attributionEnabled={true}  // info button + © Mapbox; positioned by SDK
       compassEnabled={false}
       pitchEnabled={false}        // 2D only in v1 per D9
       rotateEnabled={false}       // disabled per D11 lock (re-enable in settings v1.5)

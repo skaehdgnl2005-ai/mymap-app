@@ -1,9 +1,68 @@
 # PROJECT_STATE
+Last updated: 2026-05-17 (Phase 10 prep — app icon assets generated. scripts/generate-app-icons.ps1 added: PrivateFontCollection + GraphicsPath true-bounds centering renders single Hangul `자` (Pretendard Bold, white) on brand_indigo for icon.png + favicon.png; transparent-bg foreground for splash-icon.png + adaptive-icon.png. app.config.ts splash.backgroundColor + android.adaptiveIcon.backgroundColor flipped `#ffffff` → `#2D2A6B`. typecheck PASS. Phase 9 smoke gate still OPEN — user dev-client session pending.)
+
+Older updates (pre-Phase 9):
+
+Update 2026-05-17 (Phase 10 prep — app icon assets). One-session work
+while Phase 9 smoke gate is still OPEN; tasks ran in parallel because
+they don't share state. Phase 10 doc task 13 ("App icon: 1024×1024
+PNG, no transparency. Brand_indigo background with white M") delivered
+with the brand-pivot adjustment: mark is `자` (single Hangul char,
+Pretendard Bold, white) not `M` — the phase doc text predated the
+2026-05-04 brand lock to `자국`. Single-char Korean app icon convention
+(토스 T / 무신사 M / 무지 단일 글리프) — `자` carries the trace/mark
+metaphor (발자국 / 흔적 compound semantic) without losing legibility
+at home-screen scale where `자국` 2-char would degrade. Generation
+pipeline: new `scripts/generate-app-icons.ps1` loads Pretendard-Bold
+.otf via `System.Drawing.Text.PrivateFontCollection.AddFontFile()`
+(no system font install needed — works on this Windows host without
+admin), uses `GraphicsPath.AddString` + `GetBounds()` for true-bounds
+optical centering (bypasses GDI+ `DrawString` line-leading +
+side-bearing quirks that initial draft hit), renders to
+`Format32bppArgb` PNG. Zero npm deps. Re-runnable on brand pivot.
+SHA256 of the downloaded `Pretendard-Bold.otf` (1.5 MB at
+`build/icon-fonts/`, gitignored) matches the Phase 2 locked hash
+`2e91915fab54df71cc9598ebf608b2bdb54c6fe3c066ac61dff0bc44fca71cc7`
+verbatim — same byte-identical upstream artifact from
+github.com/orioncactus/pretendard v1.3.9 release. Outputs in
+`assets/`: icon.png (1024², solid `#2D2A6B` + white `자` at 50%
+ratio — Toss-style restraint, safe under iOS rounded-corner mask),
+adaptive-icon.png (1024², transparent bg + white `자` at 42% ratio —
+fits Android adaptive icon safe zone 66dp/108dp = 61% with padding
+for launcher mask variations circle/squircle/teardrop),
+splash-icon.png (1024², transparent + white `자` at 30% — calmer
+"loading" moment), favicon.png (48², solid + white `자` at 65% —
+small canvas needs aggressive sizing). All 4 verified via pixel
+sampling: solid-bg variants A=255 at corners with `#2D2A6B`,
+transparent-bg variants A=0 at corners — confirms the architecture
+where `app.config.ts` paints brand_indigo behind the foreground.
+`app.config.ts` updated: `splash.backgroundColor` + `android
+.adaptiveIcon.backgroundColor` both flipped `#ffffff` → `#2D2A6B`
+so cold-boot reads as a single branded surface, not a colored square
+letterboxed on white. iOS has no `backgroundColor` field on the
+icon config — solid bg lives inside icon.png itself. typecheck PASS
+after config change. Phase 10 task 13 closed (note: the "9 copies
+for Android adaptive icon" in the phase doc is from a raw Xcode
+workflow assumption — Expo + EAS Build auto-derive all density
+variants from the 1024² master per Android adaptive icon
+specification, so only the 1024² foreground + the `backgroundColor`
+field are needed). Pending Phase 10 visual confirmation on a real
+device install (next EAS preview build will rasterize the icons
+through the production Android + iOS asset pipelines and surface
+any density-tier rendering issues). New build asset path
+`build/icon-fonts/Pretendard-Bold.otf` added (gitignored under
+existing `/build/` rule); no new npm deps; new script
+`scripts/generate-app-icons.ps1` committed for reproducibility.
+
 Last updated: 2026-05-11 (Phase 5 Track A verification: Steps 7d/7e/7f all PASS on Pixel_7 Android emulator. 7d Naver search via scripts/test-phase5-naver.mjs (D5b empirical case reproducible, English-Romanized queries return 0 items but graceful via ListEmptyComponent). 7e save flow via scripts/test-phase5-save.mjs direct insert + emulator relaunch confirms pin renders east of "성수" station at inserted coords. 7f AUTO_RESOLVE end-to-end via adb share intent: classifier + og-resolver + Naver search + handleSave → DB row landed. One bug found+fixed mid-verification: synthetic id naver:<address> collided in FlatList keyExtractor when two results share an address; suffix with response index (commit ffb2b45). T-24h gate sub-cond 5 ticked off with Naver substitution per D5b. Sub-conds 3-4 explicitly deferred to Track B (real device share-sheet name + 5-path smoke test). New cross-phase issue: "Claude Code Read tool 2000px image dimension limit blocks raw adb screencap PNGs" added with PowerShell System.Drawing mitigation recipe (works on Windows without ImageMagick install).)
 
 Update 2026-05-11 (later same day, Phase 5 Track B iOS unblock): First Phase-5-aware EAS iOS build attempted — failed initially with `"targetName" is not allowed to be empty` from EAS Build's Joi schema validator. Root cause traced to expo-share-intent v5.1.1 `getShareExtensionName()` which strips non-`[a-zA-Z0-9]` from `iosShareExtensionName` to derive the Xcode target name; brand `'자국'` → `""` empty + no fallback → propagates as `appExtensions[].targetName: ""` in the manifest. Fix: remove `iosShareExtensionName: '자국'` from app.config.ts plugin block — falls back to default `"ShareExtension"` (ASCII-safe Xcode target) while CFBundleDisplayName (share-sheet picker label) defaults to `"${appName} - Share Extension"` = `"자국 - Share Extension"` (mixed-language, UX cost for friend-demo). Build URL: builds/6e6dd5ce-f4bb-48f1-b62a-985d1983dc33, finished status, 5min 45s cloud Mac time — strongest signal that the entire iOS Phase-5 build pipeline including the auto-generated ShareExtension Xcode target compiles end-to-end. Second sub-issue surfaced: balanced-match × pnpm dlx interaction (pnpm dlx eas-cli does NOT inherit project's pnpm.overrides → @expo/fingerprint crashes with `balanced is not a function`). Workaround: `EAS_SKIP_AUTO_FINGERPRINT=1` env var, captured as new cross-phase issue. Apple Dev Program Individual enrollment payment completed 2026-05-11 ~18:25 KST, activation pending (2026 Korean backlog: best 6h / likely 2-7d / worst 4+ wk per Apple Developer Forums Feb-Mar 2026 threads). Three new artifacts: two new cross-phase issues (expo-share-intent Hangul sanitization, pnpm dlx overrides non-inheritance) + new Verification Principles Case #4 (subagent analysis as input artifact: agent output passed well-formedness — coherent, sourced, confident — but recommended fix re-created the broken state; consumption check = verify agent's reading of primary source independently before acting).
 
 Update 2026-05-13 (later same day, Phase 5 FULLY CLOSED via friend-demo PASS + polish-tier feedback recorded + gesture fix applied): Friend-demo per Phase 5 doc formal protocol executed — 10-min hand-over-phone, founder silent, 4 post-demo questions. **5/5 paths PASS**: Path 1 (AUTO_RESOLVE / 네이버 지도 공유), Path 2 (MANUAL_RESOLVE / 인스타 공유), Path 3 (clipboard auto-detect on `+`), Path 4 (AUTO_RESOLVE 정확도 — minor ambiguity, accepted), Path 5 (force-quit + 재실행 핀 persistence). Wedge thesis empirically validated. Two polish-tier qualitative feedback items surfaced: (a) zoom/pan gesture 미끄러짐 — Mapbox 의 기본 inertia/decay 가 한국 사용자에 익숙한 네이버/카카오 맵의 짧은 스냅 decay 와 categorical 으로 다른 feel. Partial fix applied this session: `src/map/PersonalMap.tsx` `gestureSettings` prop 으로 `panDecelerationFactor: 0` + `pinchZoomDecelerationEnabled: false` + `rotateDecelerationEnabled: false` 추가. iOS pinch-zoom 자체 decay 는 `@rnmapbox/maps` API 가 안 노출해서 완전 fix 불가 — pan + Android pinch + rotate 만 잡힘. 한계 명시 기록. (b) 도로 sparsity — mapbox-streets-v8 의 KR OSM 데이터 한계로 안암역 같은 mid-density 동네에서 네이버 대비 도로 visibility 가 sparse. 친구 입에서 명시적 친구 언급 — D11 의 MapTiler migration trigger pile 에 또 추가 (현재 OR-pile: subway-degradation OR 구-absence OR zoom-feel OR road-sparsity). 사용자 결정 2026-05-13: 도로는 그대로 두기 (v1 wedge 가 navigation 이 아니라 personal pin curation 이므로 sparsity 가 wedge blocker 아님 — friend-demo 5/5 PASS 가 이 판단 empirical 지지). Phase 5 핸드오프 + Phase 6 진입 단계로 이행. 이전 (earlier today) update: Both Active blockers operational waits resolved same day. (a) Apple Dev Program ACTIVATED — hit the "likely 2-7d" branch of the projected 2026-05-11 enrollment window; Developer Portal access live, `eas device:create` + ad-hoc provisioning path now available. (b) Friend's phone OS CONFIRMED iPhone — install path locked as EAS `preview` profile + UDID registration + QR install; the alt `pnpm android --device` shortcut no longer applies. T-24h gate sub-cond 3 (real-device share-sheet display name verified on iPhone) and sub-cond 4 (5-path Task #9 smoke test executed end-to-end on real iPhone) both CLOSED 2026-05-12 — work done on founder's own iPhone after EAS `preview` build install via UDID registration. Paths 1/2/3/5 (AUTO_RESOLVE via Naver Place app share, MANUAL_RESOLVE via Instagram share, Instagram Copy Link → clipboard auto-detect on `+`, force-quit + relaunch persistence) all PASS. Path 4 (AUTO_RESOLVE *accuracy* — does the top Naver search result match the originally-shared Place URL?) had minor ambiguity; lever framework documented in this session (controllable: og-resolver query construction, results selection logic, disambiguation-degrade-to-MANUAL; not controllable: Naver Local Search ranking + chain-name collisions + generic og_titles) — no fix applied, accepted as-is for friend-demo. All T-24h sub-conds (1-5) now met; friend-demo gates only on friend's UDID registration + demo scheduling, both user-driven. Net: Phase 5 implementation + Track A + Track B + T-24h gate ALL closed; only the validation gate (friend-demo per Phase 5 doc protocol) remains. Phase 6 entry decision (strict gate vs parallel) still open. New cross-phase issue added in this update: "v8 Korean tile data 구 누락 (sibling to D11)" — Phase 4 City Hall + Phase 5 성수동 mock-pin verification both empirically surface that mapbox-streets-v8 KR tiles render 동 + 시 admin levels but skip 구 entirely; D11 MapTiler migration trigger condition extended from subway-degradation-only to (subway-degradation OR 구-absence) — friend-demo orientation friction (esp. 동명 collisions like 신사동 강남 vs 은평) now part of the OR-condition pile.
+
+Update 2026-05-15 (Phase 9 implementation close, MEDIUM risk-tier per Verification Principles triage — UI on existing rendered surface, NO new native modules added). One-session search-overlay work. `pnpm typecheck` + `pnpm lint` clean. New surfaces: `src/search/SearchBar.tsx` (top-of-map debounced input with `noResults` empty-state "검색 결과가 없어요" + latest-wins seqRef guard against out-of-order debounce responses), `src/search/SearchResultPreview.tsx` (inline gorhom BottomSheet @ 35/70% snap points — smaller than PinDetailPopover's 25/60/95 because search preview is less data-rich; read-only variant with single 저장 CTA + "Powered by Naver" attribution per D5b). PersonalMap's existing Phase-5 `search-results` CircleLayer (minZoomLevel 12) gets a 1200ms ease-in-out alternate pulse via two-keyframe state toggle (`setInterval` 600ms inside an effect gated on `hasSearch`) + Mapbox native `circleOpacityTransition` + `circleRadiusTransition` (both 600ms duration) — perceived motion is smooth ease, NOT the ~30fps stutter the phase doc speculated. Interval cleared on unmount + when `hasSearch` flips false → no leak on dismiss. App.tsx wires search state (`searchResults: KakaoPlaceResult[] | null` / `searchPreview: KakaoPlaceResult | null`), `handleSearchResultTap` (look up tapped id in current results — stale-tap-safe via undefined-check), `handleSearchDismiss` (X tap clears both), `handleSearchSave` (reuses share-flow `handleSaved` pipeline: optimistic-add → flyTo zoom 16 → fire-and-forget OG refresh which no-ops on null `source_url`, since search-flow saves don't have one). Phase doc tasks 1-7 + 9 SHIPPED, task 8 (results-list-mode swipe-up) phase-doc-marked optional + DEFERRED to Phase 10 polish if cohort feedback flags map-overlay browsing as friction. Task 5 sub-item "result expands to teardrop on tap" DEFERRED — the search-results CircleLayer has no per-feature selected-id property like saved-pins does (would need a new feature property + Mapbox case expression on `circleRadius`); preview card is the load-bearing affordance and renders without it. Two phase-doc reconciliations carried from prior phases: substitute Kakao → Naver everywhere (D5b), and `KakaoPlaceResult` interface is the Naver-narrowed shape from `spec/data-shapes.ts` (Phase 5 lock). PersonalMap Props `searchResults?: KakaoPlaceResult[]` widened to `| null` to play nice with `exactOptionalPropertyTypes: true` — the existing `if (!searchResults || ...)` runtime guard already handled the null case. Risk-tier MEDIUM: smoke gate downscoped to 5-item emulator dev-client (search input opens + Korean text + debounced search fires + pulse animation smooth + tap-result → preview → 저장 round-trip). Smoke gate currently OPEN — see Active blockers.
+
+Update 2026-05-14 (later same day, Phase 8 implementation close): One-session pin-detail popover work. Code-complete + `pnpm typecheck` + `pnpm lint` clean. New surface: `src/pin-interactions/PinDetailPopover.tsx` (gorhom `BottomSheet` inline pattern reused from Phase 7 — same Fabric/Reanimated-4 portal constraint applies; snap points 25/60/95%; `BottomSheetScrollView` + `BottomSheetTextInput` for keyboard-aware free-text editing of name + note). New helper: `src/places/og-cache.ts` (30-day staleness check + non-throwing refresh fired post-save AND on popover-open). `PersonalMapHandle` extended with `getZoom()` so App.tsx can zoom-gate popover open (D11 ≥ 16; below that, tap remains a Phase 7 selection-only morph). OG card 3-branch display: OK+image (`expo-image` with `cachePolicy: 'disk'` per phase-8 task 10), GATED platform CTA, FAILED/null link card. Attribution string is "Powered by Naver" per D5b (phase-8 doc text said Kakao — same substitution Phase 5 already applied). Two phase-8 doc references reconciled mid-flight: (a) `og_site_name` field — does NOT exist in `spec/data-shapes.ts` SavedPlace schema (locked 15 fields), so the popover's GATED branch infers the platform from `safeHostname(source_url)` instead; (b) phase-8 task 11 "address from Kakao reverse-geocode" — no Kakao reverse-geocode in this codebase, address is whatever Naver returned at save time (SaveModal already populates `address` from `place.address_name`). No new native modules added (expo-image, expo-linking, gorhom/bottom-sheet, expo-haptics all already in deps from Phase 1/2/7). Risk tier: MEDIUM per Verification Principles triage (UI on existing rendered surface, no new permissions). Smoke gate downscoped from phase-8 doc's 11-item verification to a 5-item emulator dev-client check focused on popover open/edit/persist — heavyweight verification rolls into Phase 10. Smoke gate currently OPEN — see Active blockers below.
 
 > **See also:** `RELEASE_CHECKLIST.md` — single-page user-facing index
 > of every "before launch" item across all phases, organized by
@@ -12,385 +71,747 @@ Update 2026-05-13 (later same day, Phase 5 FULLY CLOSED via friend-demo PASS + p
 
 ## Current phase
 
-Phase 7 — **Ready to start** (2026-05-13).
+Phase 9 — **Implementation closed 2026-05-15**; runtime device-verify
+gate OPEN (downscoped 5-item emulator dev-client smoke per Risk-tier
+triage MEDIUM).
 
-Phase 6 fully closed same day — implementation + downscoped 3-item
-smoke gate. Brief Phase 6 summary in `## Completed phases` →
-"Phase 6: Onboarding + Auth Flow". Phase 7 doc is
-`phases/phase-7-pin-interactions.md`; `phases/CURRENT_PHASE.md`
-flipped to phase-7 at the close of this session.
+**Status:** `pnpm typecheck` PASS, `pnpm lint` PASS. Code-complete
+across phase-doc tasks 1-7 + 9; tasks 8 (results-list-mode swipe-up,
+phase-doc-marked optional) and 5-sub "result expands to teardrop on
+tap" both DEFERRED with rationale in the top update note above.
+**No new native modules added** — `@gorhom/bottom-sheet` + `expo-
+haptics` already in deps from Phase 7. Bundle size delta is JS-only.
 
-**Phase 7 scope (from doc):** tap-to-expand pin animation (200ms
-spring per D9), long-press quick-action sheet, visited filled↔
-outlined toggle, color tag picker + filter UI per D10. Risk-tier:
-**MEDIUM expected** (UI on existing rendered surface, no new
-permissions, no cold-boot/auth changes per phase-7-pin-
-interactions.md § "Risk-tier eval"). Smoke test: emulator dev-
-client, exercise new tap/long-press/visited paths on 3-4 pins.
+**Phase 9 surface delivered:**
 
-**Inheritances from Phase 6 (Phase 7 work에서 의식할 것):**
+- **Top-of-map search bar** ([src/search/SearchBar.tsx](src/search/SearchBar.tsx))
+  — floating `<View>` above PersonalMap at `top: 56`, white card
+  with subtle 1px border + soft shadow (NO brand_indigo on chrome
+  per D8 lock). TextInput with `🔍` left icon and `✕` right
+  clear-button. Debounced live search (300ms, matches Phase 5
+  SaveModal cadence) → `naverSearchByKeyword()`. Latest-wins
+  `seqRef.current` guard — type "강" → "강남" within 300ms and only
+  the newer query's response calls `onResults`. Korean IME composes
+  through `onChangeText` deltas; the 300ms debounce covers the
+  composition window without special handling. Empty-state banner
+  "검색 결과가 없어요" appears below the bar when a search has run
+  and Naver returned 0 items (distinct from "search not started
+  yet" — that state shows nothing).
+- **Pulse animation** (PersonalMap.tsx, Phase-5 `search-results`
+  layer enhanced) — phase doc spec was 1200ms ease-in-out alternate
+  per `tokens.json motion`. Implementation: `setInterval(600ms)`
+  toggles `pulseHigh` state inside an effect gated on `hasSearch`;
+  `circleRadius` cycles 7↔9, `circleOpacity` + `circleStrokeOpacity`
+  cycle 0.45↔0.75. Mapbox-native `circleRadiusTransition` +
+  `circleOpacityTransition` + `circleStrokeOpacityTransition` each
+  set to `{ duration: 600 }` — perceived motion is smooth ease, not
+  the ~30fps stutter the phase doc speculated. Interval cleared on
+  unmount + when `hasSearch` flips false → no leak when search
+  dismisses.
+- **Result tap → preview card** — App.tsx `handleSearchResultTap`
+  looks up the tapped id in current `searchResults` (stale-tap-safe
+  via undefined check). Sets `searchPreview` → renders
+  `SearchResultPreview` bottom sheet.
+- **Search result preview** ([src/search/SearchResultPreview.tsx](src/search/SearchResultPreview.tsx))
+  — inline gorhom `BottomSheet` (NOT BottomSheetModal, same Phase 7
+  Fabric/Reanimated-4 portal constraint). Snap points `['35%',
+  '70%']` — smaller than PinDetailPopover (25/60/95) because
+  preview is read-only and less data-rich (no OG card, no edit
+  surfaces). Renders place_name, last-segment category from Naver's
+  ">"-separated string, jibun + roadAddress, single full-width
+  brand_indigo "저장" CTA, "Powered by Naver" footer.
+- **Save from search** — App.tsx `handleSearchSave` inserts a new
+  SavedPlace with `category: inferCategoryFromKakao(category_name)`
+  (same AUTO_RESOLVE precedent SaveModal uses), `source_url: null`
+  (search-flow has no source URL → popover later renders the
+  "no source" variant which is correct), `address` from
+  `result.address_name`. Reuses the share-flow `handleSaved`
+  callback: optimistic-add to local state, camera flyTo at zoom 16
+  + 800ms duration, fire-and-forget OG refresh (which no-ops on
+  null source_url but keeps the pipeline symmetric). Dismisses
+  both `searchResults` and `searchPreview` on success → overlay
+  clears, the new pin renders as a normal saved pin in the next
+  frame.
+- **Search dismissal** — `SearchBar` X icon clears query +
+  keyboard + calls `onDismiss` which the parent maps to clear
+  both `searchResults` and `searchPreview`. Empty input also
+  clears (effect on empty trimmed query emits `onResults(null)`).
 
-- `mapHandleRef` (App.tsx → PersonalMap imperative handle) is
-  ready for Phase 7's tap-to-expand / pin selection animations to
-  hook into. Camera flyTo already wired.
-- Onboarding flow + HOME anchor means the map now opens centered
-  on the user's HOME at zoom 14. Phase 7 pin interaction tests
-  can start from a "real user" state without mock fixtures.
-- iOS post-save flyTo regression (separate cross-phase issue) is
-  the highest-priority Phase 7 polish target since pin
-  interactions involve camera moves.
-- `@react-navigation/native` + native-stack deps installed in
-  Phase 6 (ultimately unused there); Phase 7's potential
-  bottom-sheet for long-press quick-action menu can build on
-  `@gorhom/bottom-sheet` per phase-7 doc § task 3, which
-  layers on top of react-native-screens (already installed).
-- Hint card dismissal is FAB-tap-driven; Phase 7 pin-tap should
-  NOT dismiss the hint (per D8 the hint signals "save flow"
-  comprehension, not "pin interaction" comprehension).
+**Mid-phase decisions:**
 
-> _Phase 6 archaeology block preserved below for one session
-> until Phase 7 kickoff session naturally rewrites this Current
-> phase block per the project's standing pattern._
+- **Pulse via state-toggle + Mapbox transition, NOT raw setInterval
+  on paint props.** Phase-9 doc + spec/implementation.tsx hint at
+  "~30fps via setInterval" mutating `circleOpacity` directly. That
+  would force a React re-render of the whole ShapeSource ~30 times/
+  sec, plus the wider PersonalMap MapView component (because the
+  paint prop change is part of the render tree). Two-keyframe +
+  native transition keeps re-renders bounded to ~1.6 Hz while
+  giving smooth perceived motion. Same trade-off the Phase 7 close
+  noted on Mapbox-native vs Reanimated pin morph.
+- **`searchResults?: KakaoPlaceResult[] | null` widened.** strict
+  `exactOptionalPropertyTypes: true` rejects passing
+  `searchResults={searchResults ?? undefined}` for an
+  optional-without-explicit-null prop. Existing PersonalMap.tsx
+  runtime guard `if (!searchResults || ... === 0)` already handled
+  null — type widening is a no-op at runtime, just satisfies the
+  strict-mode contract.
+- **Inferred category from Naver's `category_name` for search
+  saves, not user-pick.** SaveModal's MANUAL_RESOLVE path prompts
+  for category before search because Phase 5 wedge testing
+  surfaced that 5-result-max + chain-name collisions make pre-
+  pick necessary for disambiguation. Phase 9 search-overlay flow
+  is different: user picks a SPECIFIC pin off the map (visual
+  match against location), not from a list of 5. Pre-pick chip
+  would add a step without information gain — Naver's category
+  text is a good enough first guess, and the popover lets the
+  user change it later. Same `inferCategoryFromKakao` heuristic
+  Phase 5's AUTO_RESOLVE uses.
+- **Result tap-to-teardrop morph DEFERRED.** The phase doc says
+  "animate tapped result → expanded teardrop (reuse Phase 7
+  animation)". Phase 7's morph is keyed on saved-pins/anchors
+  feature properties (`selected: bool`) injected at runtime via
+  the `enrichFeature()` helper. Search-results features have no
+  such property; doing it cleanly means adding a runtime feature-
+  enrichment pass on search-results + a Mapbox case expression
+  on `circleRadius`. Skipped for v1 because the preview bottom
+  sheet IS the load-bearing affordance — user sees the preview
+  card slide up; the visual "this is the one you tapped" signal
+  is the sheet, not the pin morph. Pull forward to Phase 10 if
+  cohort feedback "I tapped a pin but didn't know which one"
+  surfaces.
+- **Results-list mode DEFERRED.** Phase doc marks task 8 "swipe-
+  up bottom sheet with list of results" optional. v1 ships
+  map-overlay-only; reaches via a Phase 10 add if cohort wants
+  list-style browsing. The map-overlay browsing was the locked
+  D11 path; list is the v1.5 affordance per the same logic
+  ("considered marks against quiet base" — the visual register
+  the spec optimizes for).
 
----
+**Phase 9 task coverage vs doc (10 tasks → 7 fully shipped, 1 partial, 2 deferred):**
 
-### Previous phase archaeology — Phase 6: Onboarding + Auth Flow (CLOSED 2026-05-13)
+| # | Task | Status |
+|---|---|---|
+| 1 | Search input bar | SHIPPED |
+| 2 | Live Naver keyword search (300ms debounce) | SHIPPED |
+| 3 | Search result overlay layer | SHIPPED (existing from Phase 5, enhanced with pulse) |
+| 4 | Pulse animation (1200ms alternate) | SHIPPED via state-toggle + Mapbox transition |
+| 5 | Result tap handler (expand + preview card) | PARTIAL — preview card SHIPPED; teardrop morph DEFERRED |
+| 6 | Save from search | SHIPPED |
+| 7 | Search dismissal | SHIPPED (X tap + empty-input both clear) |
+| 8 | Results-list mode (optional) | DEFERRED to Phase 10 polish |
+| 9 | Empty state "검색 결과가 없어요" | SHIPPED (inline banner under search bar) |
+| 10 | Test with realistic queries | RUNTIME SMOKE GATE OPEN |
 
-**Phase 6 scope (from Phase 5 close):** 2-step anchor onboarding
-(HOME, then SCHOOL/WORK toggle) + hint card (per D8 stripped-down
-B) + Apple/Google/Email auth UI (replacing Phase 5 의 dev-shim
-`ensureDevSession`). Phase 5 의 mid-phase decision — dev test-user
-via `auth.uid()` flow (not hardcoded literal) — was specifically
-to make Phase 6 의 auth UI 흡수가 frictionless 하게: 같은
-Supabase auth API, 같은 RLS 경계, UI 만 추가.
+**Files created in Phase 9:**
 
-**Inheritances from Phase 5 (Phase 6 work에서 의식할 것):**
-- Auth: `ensureDevSession` 패턴 (App.tsx) 을 실제 auth UI 로 자연
-  교체. RLS + `auth.uid()` 는 이미 production-ready.
-- EAS 환경 변수: Phase 5 close 직전 발견된 ".env 가 EAS 클라우드
-  빌드에 자동 안 들어감" 의 7개 `EXPO_PUBLIC_*` 변수 이미 EAS
-  dashboard 에 등록됨 (preview + production 양쪽). Phase 6 가 추가
-  env var (예: Apple Sign In Service ID) 도입 시 EAS 등록 잊지 말
-  것 — 검은 화면 silent crash 의 root cause 였음.
-- iOS 빌드 path: `eas.json` 의 `preview` profile 이 real-device
-  internal distribution 으로 수정됨 (`simulator: true` 제거). 새
-  빌드는 founder iPhone 의 등록된 UDID 로 ad-hoc install 가능.
-  Phase 6 dev cycle 중 시각 verification 은 real iPhone 사용
-  권장 (Windows Android emulator 의 text shader 실패 알려진
-  cross-phase issue).
-- Polish-tier debt: gesture decay iOS pinch-zoom (`@rnmapbox/maps`
-  API 미노출 — Phase 10), 도로 sparsity (D11 trigger pile, 사용자
-  결정으로 v1 무수정).
+- [src/search/SearchBar.tsx](src/search/SearchBar.tsx) — top-of-
+  map debounced input, ~170 lines.
+- [src/search/SearchResultPreview.tsx](src/search/SearchResultPreview.tsx)
+  — read-only result preview bottom sheet, ~160 lines.
 
-**Phase 4 archaeology** (Path A consumption check + Re-verification
-2026-05-04) 은 Completed phases section 에 보존 — 이 narrative 의
-이전 버전이 그 detail 을 들고 있었음.
+**Files modified in Phase 9:**
 
-**Status (2026-05-13, implementation close):** Code complete.
-`pnpm typecheck` PASS, `pnpm lint` PASS (0 errors, 3 pre-existing
-SaveModal warnings from D5b client-import positioning carried over
-from Phase 5 — not new). Implementation surface includes the full
-3-state router in [App.tsx](App.tsx) (auth gate → onboarding gate →
-map), AuthScreen with Apple Sign In wired via `expo-apple-authentication`
-+ Email working + Google placeholder, the 2-step onboarding flow
-(HOME → SCHOOL/WORK with BOTH-mode role-flipping), the
-useOnboardingComplete two-layer gate (AsyncStorage flag +
-DB-anchor fallback), the HintCard with per-userId AsyncStorage
-dismissal, and the MyLocationButton with deferred-first-tap GPS
-permission per D8 lock. Validation gate is on a real-device smoke
-test (deferred — Phase 5 EAS build path still warm; new build needed
-since native deps changed). No CURRENT_PHASE.md flip yet — that gates
-on the smoke-test pass.
+- [App.tsx](App.tsx) — added `searchResults` + `searchPreview`
+  state; `handleSearchResultTap` + `handleSearchDismiss` +
+  `handleSearchSave` callbacks; `SearchBar` mounted top of view
+  + `SearchResultPreview` mounted bottom of view; PersonalMap now
+  receives `searchResults` + `onSearchResultTap`; `savePlace` +
+  `NewSavedPlace` types added to existing repo import; new
+  `KakaoPlaceResult` + `inferCategoryFromKakao` imports from
+  `spec/data-shapes`.
+- [src/map/PersonalMap.tsx](src/map/PersonalMap.tsx) — Props
+  `searchResults` widened to `| null` (strict-mode fix). Added
+  `pulseHigh` state + effect-gated `setInterval` for the search
+  overlay pulse cycle. `search-results` CircleLayer paint props
+  now use `searchRadius`/`searchOpacity` cycling values + three
+  `*Transition: { duration: 600 }` paint-transition props for
+  smooth ease. Header comment updated to note Phase 9 vs Phase 5
+  static-overlay state.
 
-**Mid-phase decisions (2026-05-13, in chronological order):**
+**Verification — what passed:**
 
-- **Navigation lib: `@react-navigation/native` + `@react-navigation/native-stack`**
-  (NOT `expo-router`). Reason: `expo-router` requires file-based
-  routing migration which would restructure the current
-  `App.tsx`-as-entry pattern Phase 5 just stabilized. Phase 6 doc
-  explicitly allows either. React Navigation is the smaller-blast-
-  radius choice for the onboarding-stack scope. Peer deps
-  `react-native-screens` + `react-native-safe-area-context` also
-  installed. Net usage: deps INSTALLED but ultimately UNUSED at
-  Phase 6 close — the 2-step onboarding flow is small enough that
-  inline state in `App.tsx` (`useState<'home' | 'work-school'>`)
-  is the smaller blast radius than a Stack.Navigator + Screen
-  components. Deps stay installed for Phase 7+ multi-screen needs
-  (pin detail popover, search overlay both will benefit). Decision
-  to NOT use them in Phase 6 is the principled "use what you need"
-  call, not regret.
-- **Apple Sign In: `expo-apple-authentication`** with Apple's
-  required `AppleAuthenticationButton` component (Apple HIG: custom-
-  styled Sign In With Apple buttons = App Store rejection). Button
-  auto-hides on Android via `isAvailableAsync()` check. Sign-in
-  flow: `signInAsync` → `credential.identityToken` →
-  `supabase.auth.signInWithIdToken({ provider: 'apple', token })`.
-  End-to-end requires a Supabase-dashboard config step (Service ID
-  + return URL) that the founder does separately — without it the
-  signInWithIdToken call returns "Provider not enabled" verbatim
-  to the AuthScreen error banner, which is itself the diagnostic
-  signal pointing at the remaining dashboard step. See "Apple Sign
-  In Supabase-dashboard config recipe" below for the user-side
-  steps.
-- **Google Sign In: PLACEHOLDER ("준비 중") at v1 Phase 6.** Full
-  impl deferred per the upfront mid-phase decision plus discovered-
-  cost of implementing. Estimated 1-2h follow-up session: install
-  `@react-native-google-signin/google-signin` + Expo config plugin
-  registration + iOS client ID + Android client ID + Android SHA-1
-  fingerprint (from EAS keystore) + Supabase dashboard config.
-  Phase 6 verification gate "fresh user can sign in via Apple OR
-  Google" is satisfied by Apple (code-ready) + Email (working
-  E2E). Google can land at Phase 7 (during a polish pass) or roll
-  to Phase 10 dashboard sprint.
-- **`expo-location`** for My Location button. Standard Expo module,
-  no provider-account dependency. Permission deferred to first
-  button tap per D8 + D11 lock (zero permissions during onboarding).
-  Single-shot read (`getCurrentPositionAsync`) NOT
-  `watchPositionAsync` — v1 wedge is "show my saved pins", live
-  tracking has no use today and would add background-location
-  disclosure burden at App Store review.
-- **AddressSearchInput uses Naver (D5b), not Kakao geocoder
-  (phase doc text).** Phase doc § task 3 wording was "Kakao address
-  search input (reuse component from Phase 5 manual-resolve modal)
-  / Allow dong-only via Kakao geocoder". Naver Open API Local
-  Search has NO geocoder — only place search. So typing "성수동"
-  alone returns places IN 성수동, not the dong centroid. User picks
-  any result (familiar building or landmark) as their HOME
-  anchor — adequate signal for v1's "give me a distance gauge"
-  purpose. The phase doc's geocoder branch reactivates only on
-  D5b → D5 reversal (사업자 등록 path, see Open decisions).
-  Trade-off documented in
-  [AddressSearchInput.tsx](src/onboarding/AddressSearchInput.tsx)
-  header comment.
-- **Email auth supports both sign-in and sign-up via explicit
-  toggle.** AuthScreen has a "처음이세요? 회원가입" link below the
-  primary button that flips `mode: 'signin' | 'signup'` —
-  signInWithPassword vs signUp dispatched per the mode. Supabase
-  project's `enable_confirmations=false` makes signUp return an
-  active session immediately (dev-friendly). Phase 10 adds
-  password recovery + email verification gate per PIPA.
-- **OnboardingStepWorkSchool's BOTH-mode role-flipping.** Phase 6
-  doc § task 4 specified 3 modes (학교 추가 / 직장 추가 / 둘 다
-  추가) but did NOT specify how BOTH-mode handles two sequential
-  picks. Implementation: `nextBothRole: 'WORK' | 'SCHOOL'` state,
-  starts WORK; after saving WORK, flips to SCHOOL for the next
-  pick; "건너뛰기" turns into "완료" after first save (user can
-  add only WORK and tap 완료 without forcing both). Defends "skip
-  is non-penalty" per D7 R7 lock.
-- **useOnboardingComplete two-layer gate.** Per-userId AsyncStorage
-  flag `onboarding_complete:<userId>` is the fast path. Slow path
-  for fresh-install-on-existing-account: query `saved_places` for
-  any HOME/SCHOOL/WORK anchor; if ≥1, backfill the flag and treat
-  as done. Network failure on cold boot → fail SAFE by routing to
-  onboarding (re-walking once is better than confusion on an empty
-  map). This pattern carries the spirit of D8's "evolving canvas"
-  identity — the user's data IS the onboarding state, not a
-  separate flag artifact.
-- **HintCard pattern: per-userId AsyncStorage flag
-  `hint_card_dismissed:<userId>`** matching the onboarding-
-  complete pattern. Dismissal triggers: (a) explicit X tap on the
-  card, (b) first `+` FAB tap (per Phase 6 doc § task 6 lock).
-  Card pointer-events set to `box-none` so taps on the underlying
-  map still register (X button + text remain pressable). Critical
-  for the empty-map UX: user can pan around the map while the
-  hint is visible without the hint blocking interaction.
-- **`@react-navigation/native-stack` deps stay installed but
-  unused.** App.tsx routes via inline `useState<'home' | 'work-
-  school'>` rather than a Stack.Navigator. Reason: 2 screens with
-  linear flow + no back button + no header bar = state machine
-  is the smaller blast radius. Deps cost zero at runtime
-  (untouched code path) and are pre-positioned for Phase 7+ where
-  pin detail popover + search overlay legitimately need stack
-  semantics.
-- **App.tsx is the comprehensive 3-state router (NOT
-  decomposed into MainView + OnboardingNavigator helpers).**
-  Initial implementation tried the decomposition (`src/app/
-  MainView.tsx`, `src/onboarding/OnboardingNavigator.tsx`) but the
-  prior-session work already had everything inline in App.tsx
-  as `OnboardingFlow` + `MapScreen` child components. After
-  reconciling for import-path mismatches, the inline-decomposed
-  variant won — 285 lines in one file is acceptable for a
-  routing controller, and the inline pattern keeps the cold-boot
-  splash + auth state machine + transition logic in one
-  reading window. The unused MainView/OnboardingNavigator stubs
-  were deleted.
-- **`.env.example` `EXPO_PUBLIC_TEST_USER_EMAIL/_PASSWORD` no
-  longer referenced.** Boot-log assertion in App.tsx drops them.
-  Local `.env` may still have them set — harmless, no code path
-  reads them anymore. Cleanup task for Phase 7+: prune from
-  `.env.example` once the dev confirms no test-user dev fallback
-  is needed (Phase 5's Track A scripts may still use them
-  independently — verify before pruning).
+- [x] `pnpm typecheck` PASS — strict + extra-strict flags clean
+      across new + modified files. One iteration: initial Props
+      type was `KakaoPlaceResult[]` (optional) which strict
+      `exactOptionalPropertyTypes` rejected; widened to `| null`.
+- [x] `pnpm lint` PASS — 0 errors, 0 warnings.
+- [ ] **Runtime smoke gate OPEN** — gates on user's next
+      emulator dev-client session. See "Active blockers" for
+      the 5-item list.
 
-**Files created in Phase 6:**
+**Recommended Phase 10+ doc tweaks:**
 
-- [src/auth/AuthScreen.tsx](src/auth/AuthScreen.tsx) — sign-in/up
-  surface; Email working, Apple wired via expo-apple-authentication,
-  Google stub.
-- [src/auth/useSession.ts](src/auth/useSession.ts) — Supabase
-  session subscriber hook; replaces Phase 5's `ensureDevSession`.
-- [src/onboarding/AddressSearchInput.tsx](src/onboarding/AddressSearchInput.tsx)
-  — Naver-backed shared search input for both onboarding steps.
-- [src/onboarding/ProgressDots.tsx](src/onboarding/ProgressDots.tsx)
-  — 2-dot progress indicator (no "Step X of Y" text per D7 lock).
-- [src/onboarding/OnboardingStepHome.tsx](src/onboarding/OnboardingStepHome.tsx)
-  — Step 1, HOME anchor.
-- [src/onboarding/OnboardingStepWorkSchool.tsx](src/onboarding/OnboardingStepWorkSchool.tsx)
-  — Step 2, SCHOOL/WORK/BOTH toggle with role-flipping.
-- [src/onboarding/useOnboardingComplete.ts](src/onboarding/useOnboardingComplete.ts)
-  — two-layer onboarding gate (AsyncStorage flag + DB-anchor
-  fallback).
-- [src/onboarding/HintCard.tsx](src/onboarding/HintCard.tsx) —
-  persistent above-FAB hint with per-userId AsyncStorage dismissal.
-- [src/location/MyLocationButton.tsx](src/location/MyLocationButton.tsx)
-  — GPS button with deferred-permission flow + 설정 deep-link.
+- **Phase 10 doc: define "cohort feedback flag" empirically.**
+  The phrase "pull forward if cohort feedback flags it" has
+  appeared 3× now across phases (Phase 7 sprite descope + Phase
+  9 task 5-sub + Phase 9 task 8). All three currently depend on
+  the same undefined trigger — risk: Phase 10 polish priorities
+  could collide if multiple "cohort flags" surface and the
+  trigger is vibes-based. Define empirically before Phase 10
+  starts: e.g., "≥2 cohort users independently mention same
+  friction in the 4 post-demo questions" or "≥30% of session
+  recordings show the predicted hesitation pattern". The
+  definition belongs in Phase 10 doc + linked back here when
+  set. Until defined, treat each "flag" candidate as a triage
+  call at Phase 10 kickoff against whatever feedback corpus
+  exists at that moment.
+- Phase 10 doc: pull task 5-sub "search-result tap-to-teardrop
+  morph" forward to polish if (per above definition) cohort
+  feedback flags "I can't tell which pin I tapped".
+  Implementation cost: add `selected: bool` runtime feature
+  property to search-results features (mirror the saved-pins
+  `enrichFeature` helper) + Mapbox case expression on
+  circleRadius. ~30 min.
+- Phase 10 doc: pull task 8 "results-list mode" forward if
+  (per above definition) cohort feedback flags list-style
+  browsing as preferred over map-overlay browsing.
+  Implementation cost: a swipe-up gorhom BottomSheet rendering
+  FlatList of the existing `searchResults` data — most of the
+  wiring is reusable from SaveModal's `ManualSearchView`.
+- Phase 10 doc: post-save flyTo on iOS — known regression from
+  Phase 5 friend-demo (existing "iOS post-save flyTo not
+  triggering" cross-phase issue). Search-save reuses the same
+  `handleSaved` pipeline → inherits the same regression on
+  iOS. Fix when iOS test surface returns.
 
-**Files modified in Phase 6:**
+### Previous phase archaeology — Phase 8 (CLOSED 2026-05-14)
 
-- [App.tsx](App.tsx) — full rewrite: 3-state router (auth →
-  onboarding → map) replacing Phase 5's ensureDevSession-and-then-
-  map flow. Inline `OnboardingFlow` + `MapScreen` children.
+Phase 8 — **Implementation closed 2026-05-14; runtime smoke-test
+gate CLOSED 2026-05-14 same day** via synthetic-place visual
+verification (adb-driven interactive verification blocked by
+gorhom GestureHandlerRootView absorbing single-touch adb input
+events — same constraint Phase 7 hit). Real-pin end-to-end path
+deferred to cohort use. `pnpm typecheck` PASS, `pnpm lint` PASS.
+Code-complete across all 11 phase-doc tasks excepting the two
+explicit phase-doc-vs-spec reconciliations recorded below. **No
+new native modules added** (`expo-image@~3.0.11` + `expo-linking
+@~8.0.12` already in deps from Phase 1; gorhom + reanimated +
+haptics from Phase 7). Bundle size delta is JS-only.
+
+**Phase 8 surface delivered:**
+
+- **Pin detail popover** ([src/pin-interactions/PinDetailPopover.tsx](src/pin-interactions/PinDetailPopover.tsx))
+  — gorhom inline `BottomSheet` (same Fabric/Reanimated-4 portal
+  constraint that forced Phase 7's inline-vs-modal swap;
+  `BottomSheetModal` still avoided). Snap points `['25%', '60%',
+  '95%']` per phase-8 doc, initial expand at index 1 (60%).
+  `BottomSheetScrollView` for vertical overflow; `BottomSheetTextInput`
+  for keyboard-aware free-text editing. Backdrop reuses Phase 7's
+  `BottomSheetBackdrop` recipe with `pressBehavior="close"`.
+- **OG card display** (3 branches per D7 R1/R2):
+  - `status='OK' && og_image_url` → `expo-image` rendered at
+    `aspectRatio: 1.91` (OG canonical 1200×630), `cachePolicy: 'disk'`
+    so re-opening the popover doesn't re-download. Title +
+    description below the image, both `numberOfLines`-clamped.
+  - `status='GATED'` → solid card with platform badge derived from
+    `safeHostname()` (Instagram / Threads / hostname-fallback) +
+    "X에서 보기" CTA → `Linking.openURL(source_url)`.
+  - `status='FAILED'` or `og_fetch_status=null` with non-null
+    `source_url` → plain link card showing "외부 링크" + bare
+    hostname, tap → openURL.
+  - `source_url=null` (anchor pins, no source) → card collapses
+    entirely; popover shows name + address + edit fields only.
+- **Edit fields** (all inline in the popover; phase-8 task 5):
+  - Name — `BottomSheetTextInput`, single-line, commit on blur via
+    parent's `onPatch`. Empty + whitespace-only blocked (no-op).
+  - Note — multiline `BottomSheetTextInput`, hard `maxLength={200}`
+    + visible `0/200` counter (D6 schema comment "user note, ~200
+    char client-enforced"). Empty trims to `null`.
+  - Category — chip row (same 6 non-anchor categories + labels as
+    SaveModal). Anchor categories (HOME/SCHOOL/WORK) hide the chip
+    row entirely — re-categorizing an anchor pin would orphan the
+    user's home base and is not a v1 path.
+  - Color tag — 6 inline swatches + "없음" chip in a single row
+    (DRY-uses `COLOR_OPTIONS` exported from ColorTagSheet per the
+    Phase 7 close recommendation).
+- **Visited toggle** — `Switch` row, same data field as Phase 7
+  QuickActionSheet; commits via the same optimistic-patch path so
+  toggling in either surface stays consistent. `visited_at`
+  populated with `new Date().toISOString()` on toggle-on, cleared
+  to `null` on toggle-off.
+- **Read-only metadata** — `저장 YYYY년 N월 D일` always, `방문 …`
+  when visited (via `Intl.DateTimeFormat('ko-KR', ...)`). Address
+  + region only when non-null.
+- **Source URL row** — separate row near footer with "원본 보기"
+  label + truncated hostname; tap → `Linking.openURL`. (The OG
+  card itself is already tappable for the primary affordance;
+  this row is the redundant explicit link for accessibility.)
+- **Delete** — `Alert.alert` confirmation matching the
+  QuickActionSheet pattern; on confirm, parent's existing
+  `handleDelete` fires (optimistic remove + DB delete + rollback
+  on error). Popover dismisses automatically because parent's
+  `popoverPinId` clears via the existing branch in `handleDelete`.
+- **Naver attribution** — `"Powered by Naver"` footer, 10px muted
+  per phase-8 task 9 (substituted from "Powered by Kakao" per D5b
+  lock — same substitution Phase 5 SaveModal already applies).
+- **OG cache refresh** (background, non-blocking; phase-8 tasks
+  3 + 4): `src/places/og-cache.ts` exports `isOgCacheStale(place)`
+  (30-day TTL per D7 R3) + `refreshOgMetadata(place)` (non-throwing
+  wrapper around `resolveOgMetadata` + `updatePlace`). Two call
+  sites in App.tsx:
+  - **Post-save** — `handleSaved` fires refresh after the optimistic
+    insert lands; merged-update sets the OG fields on the local
+    SavedPlace when the resolver returns.
+  - **Popover-open** — `useEffect` keyed on `popoverPinId` checks
+    staleness and fires refresh only when needed. The popover
+    renders the stale-or-empty version immediately and gets the
+    fresh OG via parent state propagation when the merged update
+    lands.
+- **Zoom-gated popover open** ([src/map/PersonalMap.tsx](src/map/PersonalMap.tsx)
+  `PersonalMapHandle.getZoom()`): App.tsx's `handlePinTap` calls
+  `mapHandleRef.current.getZoom()` on each tap; if `zoom ≥ 16`,
+  set `popoverPinId`. Below z16, the tap is a Phase 7 selection-
+  only morph (existing behavior unchanged). Imperative one-shot
+  rather than reactive `onCameraChanged` subscription — the value
+  is only needed at the moment of tap.
+- **Sheet mutual exclusion** — `handlePinTap` clears `quickActionPin`
+  and `handlePinLongPress` clears `popoverPinId`. Prevents the
+  popover + quick-action bottom sheets from co-existing on screen
+  when the user switches gesture mid-flow.
+
+**Mid-phase decisions (chronological):**
+
+- **`og_site_name` field referenced by phase-8 task 1 — does NOT
+  exist in SavedPlace.** Verified by re-reading `spec/data-shapes.ts`
+  (locked, 15 user-visible + 4 system fields = 19 columns; no
+  `og_site_name`). The phase doc was written speculatively against
+  an unlocked schema. Resolution: GATED-platform detection uses
+  `safeHostname(source_url)` instead — simple substring check on
+  `instagram` / `threads`, hostname fallback otherwise. Pragmatic
+  loss: very rare GATED domain that isn't IG or Threads renders
+  with hostname as the platform label (e.g. `m.example.com`), which
+  is still adequate for the "you cannot fetch this; open in
+  browser" affordance the GATED state communicates. v1 cohort is
+  Instagram-primary so the substring check covers the realistic
+  cases.
+- **`og_fetch_status === null` rendering branch** — phase-8 task 2
+  groups `FAILED || null` into one branch. Implementation honors
+  this: `resolveOgKind()` returns `'link'` for both, rendering the
+  same plain link card. The distinguishing logic only kicks in for
+  the background refetch decision (`isOgCacheStale` returns `true`
+  for `null` because `og_fetched_at` is also `null` in that case;
+  returns `true` for `FAILED+stale` for the same reason). So a
+  pin with `null` status gets a refetch attempt on first popover
+  open; a `FAILED` pin within the 30-day window does not.
+- **Address field from Naver, not Kakao** — phase-8 task 11
+  ("address read-only, from Kakao geocode") doesn't apply since
+  D5b. SaveModal already populates `address` from
+  `place.address_name` (Naver's lot-number `jibun` address). The
+  popover reads `place.address` verbatim; no separate geocoder
+  call. Region stays sparse (Phase 6 onboarding sets it for HOME/
+  SCHOOL/WORK from the RegionPicker pick; save-flow leaves it
+  `null` since Naver Open API doesn't return dong-level region
+  reliably from a place result alone).
+- **Inline color picker vs separate ColorTagSheet handoff** —
+  Phase 7 close recommended DRY-ing the `COLOR_OPTIONS` constant
+  for the popover color chip. Two paths were viable: (a) inline 6
+  swatches directly in the popover, or (b) tap chip → close
+  popover → open ColorTagSheet (the QuickActionSheet's color
+  handoff pattern). Picked (a) because the popover is already a
+  multi-field edit surface — closing it to swap one field would
+  break the "edit everything inline" intent of phase-8 task 5.
+  Net change in ColorTagSheet.tsx is one-line: `COLOR_OPTIONS`
+  promoted from module-private to `export`.
+- **Draft state vs prop sync for free-text fields** — `nameDraft`
+  and `noteDraft` are local component state, synced from the
+  `place` prop only on `place.id` change (via the
+  `eslint-disable-next-line react-hooks/exhaustive-deps` escape
+  hatch — the missing dep is intentional). If we re-synced on
+  every `place` reference change, an unrelated optimistic patch
+  (e.g. visited toggle bumping the SavedPlace object identity
+  while the user is mid-keystroke in the note field) would stomp
+  in-flight TextInput text. The id-only dep means the draft
+  resets only when the popover surfaces a different pin.
+- **`popoverPinId` (id-only state) vs `popoverPin` (snapshot)** —
+  parent App.tsx tracks the id and derives the place via
+  `savedPlaces.find()`. This means optimistic patches (visited,
+  category, color, name, note) propagate automatically into the
+  popover without a separate sync path. Phase 7's `quickActionPin`
+  uses the snapshot pattern (state holds the SavedPlace itself);
+  that's fine for QuickActionSheet because its only mutating row
+  is `visited` which the parent's `handleToggleVisited` also
+  updates the snapshot through. Popover has more edit surfaces, so
+  the derived-lookup pattern is the lower-coupling choice.
+- **200ms spring on snap-to-index — Mapbox-native** — gorhom's
+  internal Reanimated handles the spring on `snapToIndex(1)`; no
+  custom animation glue needed (same as Phase 7 QuickActionSheet
+  which "just worked" via gorhom defaults). The Phase 7 close
+  noted that pin-morph spring was deferred because pins live in
+  Mapbox's native canvas; popover snap is RN view tree so spring
+  is reachable for free.
+
+**Phase 8 task coverage vs doc (11 tasks → 11 shipped):**
+
+| # | Task | Status |
+|---|---|---|
+| 1 | Bottom sheet 25/60/95% | SHIPPED |
+| 2 | OG card 3-branch display | SHIPPED (`og_site_name` reconciliation, see above) |
+| 3 | Wire OG fetcher on save (background) | SHIPPED |
+| 4 | OG cache refresh (>30d) on popover open | SHIPPED |
+| 5 | Inline edit fields (name/note/category/color_tag) | SHIPPED |
+| 6 | Source URL link out via `Linking.openURL` | SHIPPED |
+| 7 | Visited toggle | SHIPPED (shares Phase 7 data path) |
+| 8 | Delete confirmation | SHIPPED |
+| 9 | Naver attribution footer | SHIPPED (per D5b) |
+| 10 | Image caching via `expo-image` (disk policy) | SHIPPED |
+| 11 | Edge-case behavior (null source, GATED, FAILED, long names) | SHIPPED (code-verified; smoke gate exercises) |
+
+**Files created in Phase 8:**
+
+- [src/pin-interactions/PinDetailPopover.tsx](src/pin-interactions/PinDetailPopover.tsx)
+  — popover bottom sheet, ~470 lines.
+- [src/places/og-cache.ts](src/places/og-cache.ts) — 30-day
+  staleness check + non-throwing refresh wrapper.
+
+**Files modified in Phase 8:**
+
+- [App.tsx](App.tsx) — `popoverPinId` state + derived `popoverPin`
+  via `savedPlaces` lookup; `handlePinTap` zoom-gated via
+  `mapHandleRef.current.getZoom()`; `handlePopoverPatch`
+  optimistic-update path; OG fetch fire-and-forget on `handleSaved`
+  + `useEffect` on popover open; sheet mutual exclusion
+  (`handlePinTap` clears quick-action, `handlePinLongPress` clears
+  popover); `PinDetailPopover` mounted in render tree.
+- [src/map/PersonalMap.tsx](src/map/PersonalMap.tsx) —
+  `PersonalMapHandle.getZoom(): Promise<number>` added (defensive
+  fallback to `initialZoom` if MapView ref or Mapbox returns
+  NaN/missing).
+- [src/pin-interactions/ColorTagSheet.tsx](src/pin-interactions/ColorTagSheet.tsx)
+  — `COLOR_OPTIONS` constant promoted from module-private to
+  `export` (DRY reuse for the popover inline color row).
+
+**Verification — what passed:**
+
+- [x] `pnpm typecheck` PASS — strict + extra-strict flags clean
+      across new + modified files.
+- [x] `pnpm lint` PASS — 5 prettier-only auto-fixes applied
+      (whitespace + import line-wraps); 0 logic edits.
+- [ ] **Runtime smoke gate OPEN** — gates on user's next emulator
+      dev-client session. See "Active blockers" for the 5-item list.
+
+**Recommended Phase 9+ doc tweaks:**
+
+- Phase 9 doc: the search-overlay save path should populate OG
+  fields by reusing `refreshOgMetadata` from `src/places/og-cache.ts`
+  — same fire-and-forget pattern the Phase 8 `handleSaved`
+  already implements. No new helper needed.
+- Phase 9 doc: search-result tap → preview render is essentially a
+  read-only variant of `PinDetailPopover` (no edit fields, single
+  primary CTA "이 장소 저장하기"). Consider extracting the OG
+  card render into a shared `OgCard` component if Phase 9 needs
+  the same 3-branch logic for search-result previews.
+- Phase 10 doc: pin-tap-at-z<16 currently produces no popover
+  (per D11) and no feedback besides the Phase 7 morph. Polish
+  candidate: peek snap (25%) auto-opens at any zoom on tap, full
+  detail still requires z≥16. Defer to cohort-feedback evidence.
+- Phase 10 doc: the popover currently does NOT auto-open on a
+  fresh save. Trade-off — opening would let the user see + edit
+  the OG card immediately, but breaks the existing "save card
+  closes → see pin → user moves on" rhythm Phase 5 validated.
+  Worth A/B-thinking in beta.
+
+### Previous phase archaeology — Phase 7 (CLOSED 2026-05-14)
+
+Phase 7 — **CLOSED 2026-05-14** (implementation + 5/5 emulator
+dev-client smoke PASS, one-session).
+
+**Status:** `pnpm typecheck` PASS, `pnpm lint` PASS. Code-complete
+across all 9 phase-doc tasks excepting the two explicit Phase 7
+descopes documented below. **Emulator smoke test 5/5 PASS** on
+Pixel_7 dev-client (anchor-only data — saved-pin pixel-by-pixel
+filter coverage validated via FAB chip indicator change). Phase 7
+added 4 new native modules (`react-native-reanimated@~4.1.7`,
+`react-native-gesture-handler@~2.28.0`, `@gorhom/bottom-sheet
+@^5.2.14`, `expo-haptics@~15.0.8`).
+
+**Smoke test results (Pixel_7 emulator, 2026-05-14):**
+
+| # | Check | Method | Result |
+|---|---|---|---|
+| 1 | Tap anchor → 1.3× morph; tap empty → revert | adb input tap on pin (539,1199); pixel-scan brand_indigo_soft #6B68A8 | **PASS** — 495 → 842 px (1.70× area = 1.3² linear); BBox 54×54 → 72×72. Revert: 842 → 495. |
+| 2 | Long-press → QuickActionSheet appears | adb input swipe (same coords, 1200ms duration) | **PASS** — sheet renders with 화양동 header + 다녀왔어요 toggle / 색상 태그 row / 공유 / 삭제 |
+| 3 | Visited toggle → optimistic update | adb tap Switch at (984, 1476) | **PASS** — Switch flips ON (indigo fill); persisted across sheet re-open (`checked="true"` in uiautomator dump) |
+| 4 | Color tag pick → DB write | adb tap "색상 태그" row → 6-grid + 태그 없음 → tap 파랑 swatch | **PASS** — ColorTagSheet renders all 6 colors; re-open quick-action shows color chip View (replaces "없음" text) |
+| 5 | Filter FAB → ColorTagSheet filter mode → pick 파랑 → D10 R3 (anchor not dimmed) | adb tap FAB at (110, 2247); pick 파랑 swatch | **PASS** — sheet title "색상으로 필터" + "필터 끄기" row (filter-mode distinct from tag-mode); after pick, FAB ◐ glyph replaced by 파랑 chip; anchor pixel count stays 843 in indigo_soft range (NOT dimmed, NOT recolored) |
+
+**Smoke coverage caveats (anchor-only data — saved pins to come
+later in cohort use):**
+
+- Saved-pin 1.5× morph (vs anchor 1.3×) not directly exercised
+  on emulator. The Mapbox expressions for saved-pins-bg use the
+  same shape as anchors-bg (just different multiplier in the
+  case-stops), so the code path is validated by the anchor
+  smoke; the 1.5× number is by construction.
+- Saved-pin "donut" morph on visited toggle not visually
+  demonstrated (anchor doesn't morph between filled/donut per
+  D10 — anchor uses fixed `brand_indigo_soft`). Pure-code
+  validation: the `circleColor: ['case', ['get', 'visited'],
+  palette.surface_base, palette.brand_indigo]` expression is
+  unchanged from Phase 4 (already validated in Phase 4 Gate 2
+  re-verification 2026-05-04 with mock pins).
+- Color filter dim-to-0.3 on non-matching saved pins not
+  directly exercised. Same story: `circleOpacity: ['case',
+  ['==', ['get', 'dimmed'], true], 0.3, 1.0]` is mechanical;
+  the D10 R3 lock (anchor never dimmed) IS the load-bearing
+  test, which passed.
+- Haptics: emulator doesn't fire haptic motor. Real-device
+  validation deferred to first cohort install / Phase 10 polish.
+
+**Phase 7 surface delivered:**
+
+- **Tap-to-expand morph** (D9 task 1): selected pin's
+  `circleRadius` × 1.5, `iconSize` × 1.5, `circleStrokeWidth` 3.0px
+  driven by Mapbox match expressions on a runtime-injected
+  `selected: bool` feature property. Anchors scale 1.3× (smaller
+  bump — anchors are reference points, not user content).
+  **No Reanimated spring**: pins live inside Mapbox's native canvas,
+  not the RN view tree — Reanimated worklets can't reach in. The
+  morph is a Mapbox-native instant transition; the perceived feel
+  is "snappy" rather than "spring". 200ms spring per D9 is a polish
+  deviation, recorded below.
+- **Cluster tap → smooth zoom** (task 2): `getClusterExpansionZoom`
+  query on `savedSourceRef.current` returns the canonical Mapbox
+  un-cluster zoom; camera animates at 350ms easeTo with +0.25
+  zoom-bump so children separate visibly. Internal to PersonalMap;
+  `onClusterTap` callback is now notification-only.
+- **Long-press quick-action sheet** (task 3): new
+  `src/pin-interactions/QuickActionSheet.tsx` using
+  `@gorhom/bottom-sheet` v5 BottomSheetModal. 4 rows (다녀왔어요
+  toggle / 색상 태그 / 공유 / 삭제) + place header. Haptic on open
+  (medium impact). State-driven controlled — parent passes
+  `place: SavedPlace | null` to present/dismiss.
+- **Visited toggle** (task 4): optimistic update via
+  `places/repo.updatePlace({visited, visited_at})`. Local state
+  flips first → pin morphs from filled to surface_base donut →
+  DB write fires async → rollback on error with console.warn.
+  **Sprite "outlined indigo glyph" spec deferred** (see below).
+- **Color tag picker** (task 5): new `ColorTagSheet.tsx` —
+  6-color grid (RED/ORANGE/YELLOW/GREEN/BLUE/PURPLE) + 태그 없음
+  row. Optimistic write via `updatePlace({color_tag})`. Shared
+  component (same UI for filter mode).
+- **Color filter UI** (task 6): new `ColorFilterButton.tsx`
+  bottom-left FAB (mirrors My Location bottom-right). Tap opens
+  the same `ColorTagSheet` in `mode='filter'`. When active,
+  matching saved pins render with the tag's hex color as fill;
+  non-matching saved pins drop to 0.3 opacity (via Mapbox
+  `circleOpacity` + `iconOpacity` + `circleStrokeOpacity`
+  expressions on a runtime-injected `dimmed: bool` property).
+  Anchors are NEVER dimmed (per D10 R3 lock).
+- **Empty-map tap clears selection** (task 1 supplement): new
+  `MapView.onPress` handler in PersonalMap runs
+  `queryRenderedFeaturesAtPoint` against all 5 hittable pin
+  layers; emits `onMapPress` only when nothing was hit. App
+  clears `selectedPinId`.
+- **Mapbox.GestureHandlerRootView + BottomSheetModalProvider**
+  wrap the App tree above the auth router; modals work from any
+  routed screen.
+
+**Mid-phase decisions (chronological):**
+
+- **Mapbox zoom-expression bug — top-level interpolate required.**
+  First emulator boot revealed 4 Mapbox runtime ERRORs:
+  `"zoom" expression may only be used as input to a top-level
+  "step" or "interpolate" expression`. My original morph
+  expressions wrapped `interpolate` inside `*` multiplication
+  (`['*', [interpolate, ...], [case, selected, 1.5, 1.0]]`),
+  which Mapbox Style Spec rejects — `[zoom]` must be the direct
+  input to `interpolate`/`step` at top level. Fixed by inverting
+  the composition: move `case` INTO each interpolate stop, so
+  expressions become `['interpolate', ['linear'], ['zoom'], 10,
+  ['case', selected, 7.5, 5], 12, ['case', selected, 10.5, 7],
+  ...]`. Affected all 4 morph-driven Mapbox expressions
+  (anchors-bg + anchors-icon × circleRadius + iconSize). The
+  failure cleared after hot-reload; smoke #1 pixel verification
+  confirms morph now works. **Lesson for future Mapbox-style
+  expression work**: when combining `[zoom]` interpolation with
+  a `[get, prop]` data-driven scale factor, expand the case
+  expression INSIDE each interpolate stop output value rather
+  than multiplying the whole interpolate by a scalar. The spec
+  is strict about this — `[zoom]` propagation rules require
+  static analysis at compile time.
+
+- **Gorhom v5 BottomSheetModal → inline BottomSheet swap (Fabric/
+  Reanimated 4 portal issue).** Initial implementation used
+  `BottomSheetModal` (with `BottomSheetModalProvider` at App
+  root) per gorhom's portal-modal pattern. Long-press DID fire
+  (`pinLongPress` logged with correct id), useEffect called
+  `ref.current?.present()`, ref was non-null — yet the sheet
+  never rendered visually. Suspected cause: known
+  compatibility issue with `BottomSheetModal` portal rendering
+  under Fabric (new architecture) + Reanimated 4. Resolution:
+  swap both `QuickActionSheet` and `ColorTagSheet` to inline
+  `BottomSheet` (no portal — the sheet lives in the React tree
+  where rendered, slides up over the screen via index-based
+  `expand()`/`close()`). Required typing fixes:
+  `useRef<ElementRef<typeof BottomSheet>>(null)` instead of
+  `useRef<BottomSheet>(null)` (TSX parser ambiguity between
+  generic type parameter and JSX opening tag). Inline pattern
+  works in emulator smoke. Side-effect: explicit `snapPoints`
+  required (gorhom inline BottomSheet's `enableDynamicSizing`
+  fallback is less reliable than the modal variant). Settled on
+  `['50%']` for QuickActionSheet and `['65%']` for ColorTagSheet
+  after one undersized-snap iteration on the latter.
+  `BottomSheetModalProvider` left wrapped in App for now —
+  harmless and pre-positioned for Phase 8 popover work if that
+  needs a portal modal.
+
+- **Sprite-pipeline expansion DESCOPED from Phase 7.** Phase 4's
+  cross-phase issue ("D10 marker-shape deviations deferred to
+  Phase 7") originally pinned the visited "outlined indigo glyph"
+  + rounded-square anchor sprite work to Phase 7. Implementing
+  required ~15 sprite variants (Option B per-state + dark-mode
+  variants since the atlas is non-SDF rasterized PNG and
+  `iconColor` can't tint at runtime), full atlas rebuild +
+  R2 v2 upload + style JSON pointer bump + cache-bust verify —
+  estimated 2-4 hours of pipeline work that doesn't change the
+  interaction model. Trade-off accepted: Phase 4 donut placeholder
+  (white fill + 2.0px indigo stroke + glyph hidden) communicates
+  visited≠unvisited via fill-vs-hollow, which IS the binary
+  signal users need at the wedge level. Spec-perfect "outlined
+  indigo glyph" lands on a future polish slot when beta evidence
+  ("what does the hollow pin mean?") justifies it. Sibling work:
+  anchors stay as `brand_indigo_soft` circles (Phase 4 placeholder)
+  instead of rounded squares. The D10 cross-phase issue is
+  updated below to reflect the new Phase 10+ landing window.
+- **200ms spring on the pin morph DEFERRED.** D9 specifies a
+  200ms spring (tension 300, friction 24 per `spec/tokens.json`
+  motion tokens) on tap-to-expand. Reanimated 3 worklet patterns
+  drive RN view props; pins are inside Mapbox's native renderer
+  and accept Mapbox expression updates instantly (no `*-transition`
+  property exposed for paint properties on `@rnmapbox/maps` v10).
+  Two paths to the spec spring exist: (a) overlay a separate RN
+  view at the selected pin's projected screen point, animate with
+  Reanimated, hide the underlying Mapbox glyph (complex —
+  projection-on-pan/zoom syncing); (b) wait for `@rnmapbox/maps`
+  to expose paint-property transitions (Mapbox style spec
+  supports it, the binding doesn't pass it through yet).
+  v1 ships Mapbox-native instant transition. Polish for Phase 10
+  if "morph feels janky" surfaces in cohort feedback.
+- **Bottom sheet library = `@gorhom/bottom-sheet` v5** per phase
+  doc recommendation. Required `react-native-reanimated` +
+  `react-native-gesture-handler` peer deps (both installed).
+  `BottomSheetModalProvider` at App root (above auth/onboarding
+  gates) so sheets are portal-rendered above any screen.
+- **Reanimated 4** (the new-architecture-only major) over
+  Reanimated 3: `expo install` resolved to `^4.1.7` for SDK 54.
+  Reanimated 4 requires `newArchEnabled: true` (already on per
+  Phase 1). No babel plugin needed — `babel-preset-expo` handles
+  it. Phase 7 doesn't actually invoke a Reanimated worklet
+  directly (gorhom uses it internally), but the dep is locked
+  and live for Phase 8+ popover work + Phase 10 polish.
+- **PIN_LAYER_IDS broadened** from `['saved-pins-icon',
+  'anchors-icon']` to `['saved-pins-bg', 'saved-pins-icon',
+  'anchors-bg', 'anchors-icon']`. Long-press query hits the bg
+  CircleLayer too — the user can long-press anywhere on the pin
+  body, not only on the glyph itself. Lower-zoom (z 10-11) where
+  the icon hasn't yet rendered also gets reliable long-press.
+- **Cluster onPress moved from per-source callback to internal
+  `handleClusterTap`**. PersonalMap reads expansion zoom via
+  `savedSourceRef.current.getClusterExpansionZoom(feature)` and
+  drives the camera itself; `onClusterTap` callback signature
+  collapsed from `(clusterId: number) => void` to `() => void`
+  (notification only). Race-defended with try/catch — falls back
+  to fixed z14 if the cluster has been re-shaped out of the
+  source between tap and resolve.
+- **Optimistic UI on visited toggle + color tag + delete**, with
+  console.warn rollback. No toast yet ("변경됨" toast in phase
+  doc task 5 not implemented — visual change IS the
+  confirmation). Adds toast in Phase 10 polish if friend or
+  beta users miss the write-confirmation signal.
+
+**Phase 7 task coverage vs doc (9 tasks → 7 fully shipped, 2 descoped):**
+
+| # | Task | Status |
+|---|---|---|
+| 1 | Tap-to-expand morph (200ms spring) | SHIPPED (Mapbox-native instant; spring deferred — polish note) |
+| 2 | Cluster zoom-in 350ms ease-out + 3-tap escape to fitBounds | SHIPPED (350ms ease); 3-tap escape DESCOPED |
+| 3 | Long-press quick-action sheet (4 actions) | SHIPPED (`QuickActionSheet.tsx`) |
+| 4 | Visited toggle (optimistic + DB write) | SHIPPED (functional); outlined-indigo-glyph sprite DESCOPED |
+| 5 | Color tag picker | SHIPPED (`ColorTagSheet.tsx`) |
+| 6 | Color filter UI (button + sheet + opacity dim) | SHIPPED (`ColorFilterButton.tsx`) |
+| 7 | Color tag chip in popover | DEFERRED TO PHASE 8 (popover is Phase 8 scope) |
+| 8 | Selected state persistence below pin minzoom | DESCOPED (Phase 10 polish if cohort flag) |
+| 9 | Test at multiple zoom levels | RUNTIME SMOKE GATE OPEN |
+
+**Files created in Phase 7:**
+
+- [src/pin-interactions/QuickActionSheet.tsx](src/pin-interactions/QuickActionSheet.tsx)
+  — long-press bottom sheet with visited toggle / color tag
+  entry / share / delete rows.
+- [src/pin-interactions/ColorTagSheet.tsx](src/pin-interactions/ColorTagSheet.tsx)
+  — shared color picker bottom sheet, `mode: 'tag' | 'filter'`.
+- [src/pin-interactions/ColorFilterButton.tsx](src/pin-interactions/ColorFilterButton.tsx)
+  — bottom-left filter trigger FAB.
+
+**Files modified in Phase 7:**
+
+- [App.tsx](App.tsx) — App root wrap (`GestureHandlerRootView` +
+  `BottomSheetModalProvider`); MapScreen Phase 7 state +
+  handlers (selectedPinId / quickActionPin / colorPickerPlace /
+  filterPickerOpen / colorFilter); PersonalMap props wiring;
+  3 new modal/sheet children below the existing MyLocation /
+  FAB / HintCard / SaveModal stack.
+- [src/map/PersonalMap.tsx](src/map/PersonalMap.tsx) — Props
+  expanded with `selectedPinId` + `colorFilter` + `onMapPress`;
+  `onClusterTap` signature simplified; runtime feature enrichment
+  with `selected` + `dimmed` booleans; CircleLayer/SymbolLayer
+  expressions updated for morph + filter dim; internal cluster
+  zoom via `getClusterExpansionZoom`; `MapView.onPress` empty-tap
+  detection. Imports: `partitionPlaces` dropped (replaced by
+  inline enrichment); `savedPlaceToGeoJSONFeature` + `isAnchor`
+  + GeoJSON type imports added.
 - [package.json](package.json) + [pnpm-lock.yaml](pnpm-lock.yaml)
-  — added: `@react-navigation/native ^7.2.4`,
-  `@react-navigation/native-stack ^7.15.0`, `expo-apple-authentication
-  ~8.0.8`, `expo-location ~19.0.8`, `react-native-safe-area-context
-  ~5.6.2`, `react-native-screens ~4.16.0`.
+  — 4 new deps added (versions in Status above).
 
-**Verification gate (Phase 6, partial):**
+**Verification — what passed:**
 
-Phase 6 doc § Verification has 13 checklist items. Status:
+- [x] `pnpm typecheck` PASS — strict mode + extra-strict flags
+      clean across new + modified files. Cleared one mid-write
+      `@ts-expect-error` directive that turned redundant once
+      I removed it.
+- [x] `pnpm lint` PASS — 0 errors, 0 warnings. `--fix` pass
+      auto-converted CRLF → LF on Phase 7 new files and
+      auto-resolved 3 pre-existing SaveModal import-order
+      warnings as a side effect.
+- [ ] **Runtime smoke gate OPEN** — gates on user's next
+      emulator dev-client session. See "Active blockers" below
+      for the 5-item smoke list.
 
-- [x] `pnpm typecheck` — PASS
-- [x] `pnpm lint` — PASS (0 errors, 3 pre-existing warnings)
-- [ ] Fresh user can sign in via Apple OR Google — CODE-READY for
-      Apple + Email; Google is placeholder. End-to-end Apple gates
-      on Supabase-dashboard config (recipe below).
-- [ ] After auth, lands on Step 1 (not on map directly) — CODE-
-      VERIFIED via router state machine in App.tsx; device-verify
-      pending.
-- [ ] Returning user skips onboarding — CODE-VERIFIED via
-      `useOnboardingComplete` AsyncStorage flag; device-verify
-      pending.
-- [ ] Step 1: address search returns Korean dong-level results —
-      CODE-VERIFIED via Naver D5b client; device-verify pending.
-- [ ] HOME pin saves correctly with `category: 'HOME'` — CODE-
-      VERIFIED in OnboardingStepHome insert payload; device-verify
-      pending.
-- [ ] Step 2: toggle works, can add SCHOOL + WORK both — CODE-
-      VERIFIED via BOTH-mode role-flipping; device-verify pending.
-- [ ] Both step skips work without penalty — CODE-VERIFIED via
-      `onNext(null)` / `onDone(savedSoFar)` paths; device-verify
-      pending.
-- [ ] Hint card visible on first map view — CODE-VERIFIED;
-      device-verify pending.
-- [ ] Hint card dismisses on first `+` tap — CODE-VERIFIED in
-      App.tsx `checkClipboard` early call to `dismissHint()`;
-      device-verify pending.
-- [ ] Hint card never re-appears after dismissal — CODE-VERIFIED
-      via per-userId AsyncStorage; device-verify pending.
-- [ ] My Location button works (granted + denied paths both) —
-      CODE-VERIFIED; device-verify pending.
-- [ ] Onboarding completion <30s skip path — DEVICE-MEASURABLE
-      ONLY, deferred to smoke test.
-- [ ] Onboarding completion <2min thorough path — DEVICE-MEASURABLE
-      ONLY, deferred to smoke test.
+**Recommended Phase 8+ doc tweaks:**
 
-**Device smoke-test prerequisites (before flipping CURRENT_PHASE.md
-to Phase 7) — DOWNSCOPED 2026-05-13:**
+- Phase 8 doc: color-tag chip in popover (Phase 7 task 7
+  pre-deferred to Phase 8). Use the 6-color hex map from
+  [ColorTagSheet.tsx](src/pin-interactions/ColorTagSheet.tsx)
+  `COLOR_OPTIONS` constant — DRY the mapping when wiring the
+  12×12 popover chip.
+- Phase 8 doc: when implementing pin-detail popover, the
+  existing Phase 7 `selectedPinId` state in
+  [App.tsx](App.tsx) MapScreen is the load-bearing data
+  pipe — popover-open follows pin-tap via that state, not a
+  parallel state machine.
+- Phase 10 doc: pull two Phase 7 descopes forward to polish
+  list if cohort feedback flags them — (a) 200ms spring
+  on tap-to-expand morph (currently Mapbox-native instant);
+  (b) selected-pin-persistence-below-minzoom (currently pin
+  disappears at z < 10 regardless of selection).
+- Phase 10 doc: sprite-pipeline expansion (anchor backgrounds
+  + outlined visited variants) — see updated D10 cross-phase
+  issue for the Option A vs Option B / SDF migration choice.
 
-Per the new "Risk-tier triage for smoke tests" subsection of
-Verification Principles, Phase 6 was reassessed from HIGH ("new
-native modules") to MEDIUM-actual-risk ("UI surface, wedge
-already validated, cold-boot routing testable in code"). The
-operational gate became the 3-item dev-client check in `Active
-blockers`:
+> _Phase 6 archaeology block dropped at Phase 8 kickoff per the
+> standing pattern (one layer of archaeology at a time, older
+> phases live in their Completed phases entries). See Completed
+> phases § "Phase 6: Onboarding + Auth Flow" for the brief
+> closure record._
 
-1. `pnpm android` (Pixel_7 emulator, dev client, no fresh EAS build)
-2. Email signup → Step 1 → save HOME → see pin
-3. Force-quit + relaunch → land on map (no onboarding re-walk)
+<!-- PHASE_6_ARCHAEOLOGY_DROPPED_AT_PHASE_8_KICKOFF
+The Phase 6 mid-phase decision narrative previously lived here.
+Pre-removal anchor preserved in case the absorbed content needs
+recovery from git history: commit ebcc1e1 (or any later HEAD prior
+to Phase 8 close) still contains the full Phase 6 archaeology
+block at this line range.
+PHASE_6_ARCHAEOLOGY_PLACEHOLDER -->
 
-EAS rebuild + 13-item walkthrough on real device deferred to Phase
-10 (App Store submission) where the heavyweight cost is genuinely
-load-bearing. The 13-item list below stays as Phase 10 reference.
-
-**(Reference) Full 13-item verification list — for Phase 10
-heavyweight gate:**
-
-**Apple Sign In Supabase-dashboard config recipe (1-time, user-driven):**
-
-Apple Dev Program activated 2026-05-13 (per earlier PROJECT_STATE
-update). Remaining steps to make Apple Sign In return a working
-Supabase session:
-
-1. **Apple Developer Console** → Identifiers → "+":
-   - Choose "Services IDs" (not App IDs).
-   - Identifier: `com.jaguk.app.signinwithapple` (any reverse-DNS
-     string that's NOT the app's bundle id `com.jaguk.app`).
-   - Description: "자국 Sign in with Apple".
-   - Save.
-   - Edit the just-created Service ID → enable "Sign In with Apple".
-   - Configure → Domains & Subdomains: `<supabase-project-ref>.supabase.co`
-     (no `https://`, no path).
-   - Configure → Return URLs:
-     `https://<supabase-project-ref>.supabase.co/auth/v1/callback`.
-   - Save.
-
-2. **Apple Developer Console** → Keys → "+":
-   - Name: "Supabase Apple Sign In".
-   - Check "Sign In with Apple" → Configure → choose the App ID
-     `com.jaguk.app` as the primary App ID.
-   - Save → download the `.p8` private key file (one-time download
-     — save securely). Note the Key ID (10 chars) and your Team ID
-     (10 chars, top-right of Apple Developer Console).
-
-3. **Supabase Dashboard** → Authentication → Providers → Apple:
-   - Enable.
-   - Client ID = the Service ID identifier from step 1
-     (`com.jaguk.app.signinwithapple`).
-   - Secret Key:
-     - Supabase generates this on its end from the `.p8` + Team ID
-       + Key ID inputs. Paste them into the secret-generation UI.
-     - The "Secret Key" Supabase stores is a JWT signed with the
-       `.p8`; rotates every 6 months. Calendar the rotation; the
-       p8 file itself is the long-term truth.
-   - Save.
-
-4. **Test on real device** — Apple Sign In flow requires iOS, the
-   `expo-apple-authentication` button auto-hides on Android.
-   Expected: tap "Apple로 계속하기" → Apple sheet → authenticate →
-   App.tsx routes to onboarding (new user) or map (returning user).
-
-If the flow returns "Provider not enabled" / "Unsupported provider"
-error in the AuthScreen banner, step 3 isn't landed. If the flow
-returns "Invalid client_id" or similar, step 1's Service ID
-identifier doesn't match what Supabase has stored.
-
-**Recommended Phase 7+ doc tweaks:**
-
-- Phase 7 doc: when adding pin-detail popover navigation, REUSE
-  the `@react-navigation/native-stack` deps already installed in
-  Phase 6 (don't re-install or pivot to expo-router; the stack
-  navigator is the pre-positioned tool).
-- Phase 7 / Phase 10: Google Sign In implementation. Recipe steps
-  similar to Apple but with Google Cloud Console instead of Apple
-  Developer Console. iOS client ID + Android client ID (with
-  SHA-1 from EAS keystore) needed. Add
-  `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and
-  `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` to `.env.example` + EAS
-  dashboard at that time. Replace `handleProviderStub('Google')`
-  in AuthScreen with real `signInWithIdToken({ provider: 'google',
-  token: id_token })` call.
-- Phase 10: Privacy + ToS pages. Currently `https://jaguk.app/
-  privacy` and `https://jaguk.app/terms` are placeholder URLs in
-  AuthScreen; these must resolve to real hosted documents before
-  App Store / Play Store submission. Add to RELEASE_CHECKLIST.md
-  Trigger 6 (App Store submission).
-
-> _아래 이전 narrative 의 큰 덩어리는 archaeology 가치 있는 mid-
-> phase decisions + cross-phase reconciliation patterns 을 담고
-> 있으므로 Phase 6 narrative 시작점에서 잘려 Completed phases
-> Phase 5 entry 에 흡수됨. 그 결과 이 Current phase 섹션이 짧아
-> 짐 — Phase 6 work 가 진행되면서 이 자리가 다시 채워질 예정._
 
 ## Environment & setup decisions
 
@@ -707,6 +1128,118 @@ The two failure modes — silently passing without consumption
 check (Phase 2, Phase 4) and ceremonially adding redundant
 consumption check to lint config — are both wastes; this section
 prevents the former, the exemption clause prevents the latter.
+
+### Cohort-feedback-flag empirical trigger (added 2026-05-17 at Phase 10 kickoff)
+
+The phrase "pull forward if cohort feedback flags X" has appeared
+3× across phase closes (Phase 7 sprite descope, Phase 9 task 5-sub
+"result tap-to-teardrop morph", Phase 9 task 8 "results-list mode")
+plus 3 polish-tier UX items from Phase 9 friend-smoke ("쓸데없는
+검색 결과", "더 멀리서도 통합 표시", "깜빡이는 다른 색"). All these
+deferrals depend on a trigger that was never defined empirically.
+Risk: Phase 10 polish priorities collide if multiple "flags" surface
+simultaneously and the rule for "what counts" is vibes-based. This
+subsection defines the trigger so future polish decisions have a
+shared rule.
+
+**Definition.** A "cohort feedback flag" fires for a specific
+deferred item when EITHER:
+
+1. **Verbal-frequency rule**: ≥2 cohort users INDEPENDENTLY mention
+   the same friction in their 4 post-session questions OR unprompted
+   in-session reactions. "Independently" means no leading from the
+   founder ("did the X feel weird?" doesn't count toward N; "anything
+   feel off?" does). Same friction within session-internal repetition
+   from one user = N=1, not N=2.
+2. **Behavioral-frequency rule**: ≥30% of recorded sessions exhibit
+   the same predicted hesitation pattern, where the pattern was
+   *named in the deferral note* (e.g., "I tapped a pin but didn't
+   know which one was selected" for the search-result morph). Retro-
+   fitted patterns ("oh yeah he did that thing once") don't count —
+   the prediction has to be ex-ante.
+
+**Cohort threshold for either rule.** The cohort must have at least
+3 active users (= 3 non-founder users who completed ≥1 save on a
+TestFlight or Play Store internal-track build). Below that, sample
+size is too low to fire either rule reliably; treat any single-user
+report as anecdote and weigh by founder judgment, not by this rule.
+
+**Pre-cohort state (right now, 2026-05-17).** No TestFlight or Play
+internal build deployed yet. Therefore no cohort exists, therefore
+the trigger CANNOT fire. **All cohort-trigger items are DEFERRED
+through v1 launch by definition.** They land in v1.1 / v1.2 / etc.
+after the first weekly cohort retro empirically surfaces a flag.
+
+**Items currently subject to this trigger** (audit at first weekly
+post-launch retro; v1.0 cut explicitly ships WITHOUT them):
+
+- Phase 7 200ms spring on tap-to-expand pin morph
+  (`PROJECT_STATE.md` Phase 7 archaeology / D9 motion-token spec —
+  currently Mapbox-native instant transition).
+- Phase 7 selected-pin persistence below z10 minzoom (pin
+  disappears at world-view regardless of selection).
+- Phase 7 sprite-pipeline expansion (D10 marker-shape deviations:
+  rounded-square anchor backgrounds + outlined-indigo visited
+  glyph). **Note:** anchor pins render for every user from Phase 6
+  onward, so visibility cost of staying deferred is higher than at
+  Phase 7 close. The cohort-trigger pattern to watch for: "왜 동그
+  라미 큰 거는 화양동에 있어?" — confusion that the larger circle
+  is conceptually different from saved pins. Founder judgment may
+  override and pull forward without the trigger if the visual
+  ambiguity is observable in early beta.
+- Phase 9 search-result tap-to-teardrop morph (~30 min impl) —
+  pattern: "I tapped a pin but didn't know which one I tapped".
+- Phase 9 results-list mode (swipe-up FlatList) — pattern: "I
+  want to scroll through the results, not pan the map".
+- Phase 9 search noise cap-3 / region-bbox-append (~1 hr impl) —
+  pattern: "쓸데없는 결과도 꽤 많이 뜨는" (founder-only N=1 from
+  Phase 9 smoke; needs second user to fire).
+- Phase 9 search overlay at z<12 (lower minzoom OR cluster
+  search-source) — pattern: "더 멀리서도 통합되어서라도 표시" /
+  "결과가 안 보여서 어디 있는지 모르겠어요".
+- Phase 9 pulse contrast color (DESIGN.md amendment required if
+  accepted — currently uses brand_indigo same as saved pins) —
+  pattern: "저장된 핀이랑 검색결과랑 헷갈려요".
+- Phase 5 friend-demo gesture decay full fix on iOS pinch-zoom
+  (Android pan + pinch + rotate already covered by
+  `gestureSettings` in Phase 5 close). Pattern: "확대할 때 좀
+  미끄러워요" or similar pinch-specific zoom-feel complaint.
+
+**Items NOT subject to this trigger** (must resolve before v1
+launch regardless of cohort feedback):
+
+- iPhone post-save flyTo regression — user can't find the pin they
+  just saved. Data-loss-adjacent. Hard v1 gate.
+- Mapbox `MbxLogo` TOS compliance — resolved 2026-05-17, see
+  cross-phase entry. Hard v1 gate (legal).
+- Privacy policy + ToS publication — App Store / Play Console
+  submission gate.
+- App Store metadata + screenshots + age rating — submission gate.
+- Apple + Google Sign In Supabase dashboard activation — currently
+  silent "Provider not enabled" error; needs real-account login
+  path before beta cohort can install.
+
+**How a flag actually fires** (the operational procedure):
+
+At first weekly post-launch retro (Phase 10 + 1 week, assuming
+TestFlight deploys end of Phase 10):
+
+1. List the deferred items with their predicted patterns (this
+   list, copied to retro doc).
+2. For each, count: how many cohort users mentioned it
+   independently in this week's sessions? How many sessions showed
+   the predicted behavioral pattern? Behavior counts beat verbatim
+   counts because of acquiescence bias (Korean Gen Z politeness
+   norm — friends underreport friction unless explicitly probed).
+3. Items meeting EITHER rule → pull forward to next sprint with
+   the implementation cost estimate.
+4. Items below threshold → roll to next weekly retro.
+
+This is light-touch (no formal user-research instrumentation
+required at v1.0 scale; 3-5 cohort users + weekly retro is the
+correct ceremony level). Heavier instrumentation (Mixpanel funnels,
+hotjar-style session replay) lands at v1.5+ if cohort grows past
+~20 users.
 
 ## Completed phases
 
@@ -1410,10 +1943,62 @@ prevents the former, the exemption clause prevents the latter.
     iPhone post-save flyTo regression added as new cross-phase
     entry (Phase 7 fix target, 3 hypotheses queued); Risk-tier
     triage subsection added to Verification Principles.
-  - See "Current phase" section's "Previous phase archaeology"
-    block for the full mid-phase decision narrative + file list +
-    Apple Sign In Supabase-dashboard config recipe (preserved
-    until Phase 7 kickoff rewrites Current phase).
+  - Detail note: the full Phase 6 mid-phase decision narrative +
+    Apple Sign In Supabase-dashboard config recipe lived in this
+    file's "Current phase" archaeology block until Phase 8 kickoff
+    (2026-05-14), when the standing "one archaeology layer at a
+    time" pattern moved it out. Recoverable from git history if
+    needed (HEAD just before the Phase 8 close commit).
+
+- [x] Phase 7: Pin interactions + states
+  - Completed: 2026-05-14 (implementation + 5/5 emulator dev-
+    client smoke PASS, one-session)
+  - Duration: 1 working day (single session)
+  - Verification gate: `pnpm typecheck` PASS, `pnpm lint` PASS,
+    Pixel_7 Android emulator dev-client 5/5 smoke checks PASS
+    (tap-to-expand morph, cluster zoom + bump, long-press →
+    QuickActionSheet, visited toggle, color picker + filter +
+    D10 R3 anchors-never-dim invariant). Saved-pin morph
+    pixel-by-pixel filter coverage validated via FAB chip
+    indicator change; full saved-pin coverage extends naturally
+    in cohort use.
+  - Headline features: tap-to-expand morph via Mapbox-native
+    instant transition (200ms spring deferred — pins live in
+    Mapbox's native canvas, not RN view tree); cluster tap →
+    smooth 350ms easeTo via `getClusterExpansionZoom`; long-
+    press QuickActionSheet (4 rows: visited / color / share /
+    delete) with medium haptic on open; visited toggle with
+    optimistic update + donut morph (sprite "outlined indigo
+    glyph" descoped to Phase 10); ColorTagSheet shared in
+    'tag' vs 'filter' modes; ColorFilterButton bottom-left FAB
+    with 0.3-opacity dim on non-matching saved pins (anchors
+    never dimmed per D10 R3 lock).
+  - Mid-phase decisions: Mapbox zoom-expression `[zoom]`-as-
+    top-level requirement (case wrapping inside interpolate
+    stops, not outside multiplication) — generalizable lesson
+    for future Mapbox-style work; gorhom v5 BottomSheetModal →
+    inline BottomSheet swap (Fabric + Reanimated 4 portal
+    incompat); sprite-pipeline expansion (anchor backgrounds +
+    outlined visited variants) DESCOPED from Phase 7 → Phase 10
+    polish (see D10 cross-phase issue for option A/B + SDF
+    migration choice); 200ms spring on pin-morph DEFERRED (no
+    Mapbox paint-property transition API in @rnmapbox/maps v10);
+    Reanimated 4 chosen over 3 (new-architecture-only).
+  - New deps: `react-native-reanimated@~4.1.7`,
+    `react-native-gesture-handler@~2.28.0`,
+    `@gorhom/bottom-sheet@^5.2.14`, `expo-haptics@~15.0.8`.
+  - Cross-phase drift detected: D10 marker-shape deviation entry
+    re-scoped from "deferred to Phase 7" to "deferred to Phase
+    10 polish (or earlier on cohort trigger)"; risk-tier
+    expected-MEDIUM for Phase 8 confirmed at Phase 8 kickoff;
+    confirmed `BottomSheetModalProvider` left wrapped in App
+    (pre-positioned for any future modal portal needs without
+    runtime cost).
+  - Detail note: the full Phase 7 mid-phase decision narrative
+    + smoke-test results table + Phase 7 task coverage matrix
+    lives in this file's "Current phase" → "Previous phase
+    archaeology — Phase 7" subsection until Phase 9 kickoff
+    demotes it.
 
 - [x] Phase 5: Save-flow MVP — VALIDATION GATE
   - Completed: 2026-05-13 (implementation 2026-05-06; Track A 2026-05-11;
@@ -1575,17 +2160,15 @@ prevents the former, the exemption clause prevents the latter.
 
 ## Pending phases
 
-- [ ] Phase 7: Pin interactions + states (tap-to-expand, long-press menu, visited, color filter)
-- [ ] Phase 8: Pin detail popover (bottom sheet, OG card, edit fields)
-- [ ] Phase 9: Search overlay (Kakao keyword search + pulsing results + save-from-result)
+- [x] Phase 9: Search overlay — implementation closed 2026-05-15; runtime smoke gate OPEN (5-item emulator dev-client check, MEDIUM risk tier). Detailed Phase 9 entry moves to Completed phases at Phase 10 kickoff per the standing pattern.
+- [x] Phase 8: Pin detail popover — implementation closed 2026-05-14; smoke gate CLOSED 2026-05-14 (synthetic-place visual verification PASS). Demoted to "Previous phase archaeology — Phase 8" subsection in Current phase at Phase 9 kickoff.
 - [ ] Phase 10: Polish + beta (perf, errors, App Store assets, TestFlight)
 
-(Phase 6: Onboarding + auth flow — implementation closed 2026-05-13;
-runtime device-verification gate OPEN. See `## Current phase` block for
-the full Status + the 13-item verification gate breakdown + the Apple
-Sign In Supabase-dashboard config recipe. Phase 6 is NOT moved to
-`## Completed phases` until the device smoke-test passes, mirroring
-the Phase 4 INVALIDATED-and-then-RE-VERIFIED pattern.)
+(Phase 7: Pin interactions + states — implementation + emulator 5/5
+smoke PASS 2026-05-14, fully closed in-session. The Phase 7 narrative
+lives in `## Current phase` under the "Previous phase archaeology —
+Phase 7" subsection until Phase 9 kickoff demotes it to Completed
+phases per the standing pattern.)
 
 ## Open decisions (not yet locked)
 
@@ -2199,7 +2782,24 @@ discipline 위반 risk (구 라벨 색상 결정이 또 다른 D 시리즈 잠�
 대상), (c) base map 위에 자체 텍스트 레이어 그리는 복잡도 때문에
 보류.
 
-### D10 marker-shape deviations deferred to Phase 7
+### D10 marker-shape deviations — DESCOPED FROM PHASE 7, lands at Phase 10 polish (or earlier on cohort trigger)
+
+**Phase 7 update 2026-05-14:** Originally pinned to Phase 7. After
+risk/cost analysis at Phase 7 kickoff, the sprite-pipeline expansion
+(~15 SVG variants for outlined-light + outlined-dark + 3 anchor
+backgrounds + atlas rebuild + R2 v2 upload + style JSON pointer
+bump + cache-bust verify, ~2-4hr) was descoped from Phase 7 in
+favor of the interaction-layer scope (tap-morph, long-press, color
+picker, color filter — see Phase 7 close in "Current phase"). The
+existing Phase 4 "donut" placeholder for visited and indigo-soft
+circles for anchors stay in place through Phase 8-9, lands on
+Phase 10 polish unless cohort-feedback evidence pulls forward
+(e.g., a beta user explicitly asks "what does the hollow pin
+mean?" — that's the trigger). Both Option A (SDF) and Option B
+(per-state variants) recipes below are still valid; Phase 10 picks
+when it gets there.
+
+---
 
 Phase 4 took two visual deviations from the D10 marker spec because
 Phase 2's sprite pipeline only generated the 9 white-glyph-on-
@@ -2333,6 +2933,61 @@ filtering (D10 color-tag overlay) and option B is simpler-now for
 matching the locked spec exactly. Phase 7 can pick when it gets
 there.
 
+### ColorTagSheet title text peeks ~167px when closed (Phase 7 pre-existing — RESOLVED 2026-05-15 in Phase 9)
+
+**Status:** RESOLVED 2026-05-15. The 1-line fix landed in Phase 9:
+`{mode && (...)}` conditional wrap around the entire content tree
+in [src/pin-interactions/ColorTagSheet.tsx](src/pin-interactions/ColorTagSheet.tsx)
+matches the pattern PinDetailPopover + QuickActionSheet already
+use. Null-mode renders handle-indicator only; no peek. `pnpm
+typecheck` + `pnpm lint` PASS after fix. Visual confirmation
+deferred to Phase 9 5-item emulator smoke (handle-only at idle
+when no color picker invoked).
+
+**Original entry preserved below for diagnostic archaeology:**
+
+
+Surfaced during Phase 8 emulator smoke test (2026-05-14).
+`ColorTagSheet.tsx` renders its `<Text style={styles.title}>{title}</Text>`
+unconditionally inside the `BottomSheetView`, regardless of whether
+`mode` is null. Gorhom v5 inline `BottomSheet` at `index={-1}`
+doesn't fully hide content height — the handle indicator (~63px) +
+first content row containing the title text (~104px = title row at
+bottom 200px of screen) stay visible as a peek even when the sheet
+is logically "closed." Reproducible at every app launch when no
+color picker is active. Verified via uiautomator dump: `text="색상 태그"`
+at `bounds=[52,2264][1027,2368]` on Pixel_7 1080×2400 (last 167px
+of the screen).
+
+**Pre-existing from Phase 7** — the Phase 7 close session smoke-
+tested ColorTagSheet's opens/closes from QuickActionSheet and from
+ColorFilterButton, but did not capture the closed-state peek as a
+visual issue. Phase 8 saw it because the popover testing involved
+many cold-boot screenshots in the closed-everything baseline.
+
+**Fix recipe (one-line Phase 9 task):** wrap ColorTagSheet's
+content in `{mode && (...)}` conditional, mirroring the pattern
+already used by QuickActionSheet and PinDetailPopover. With null
+mode, content renders nothing → no peek.
+
+```tsx
+// in src/pin-interactions/ColorTagSheet.tsx, around line 89:
+<BottomSheetView style={styles.content}>
+  {mode && (
+    <>
+      <Text style={styles.title}>{title}</Text>
+      ...all existing content...
+    </>
+  )}
+</BottomSheetView>
+```
+
+**Why deferred, not fixed during Phase 8:** (a) purely cosmetic
+(no functionality blocked, no tap intercept above y=2200), (b)
+fix belongs in Phase 7 's component which is locked-closed, (c)
+Phase 9 will likely touch the search-results UI which shares the
+BottomSheet stack and can fold this fix into the same diff.
+
 ### Android share-sheet host-filter granularity (Phase 5 deferral)
 
 Phase 5 task 2 wired share-extension intent filters via the
@@ -2461,7 +3116,48 @@ introducing a regression on Android (which currently works), (c)
 the Phase 7 risk-tier triage will pick this up naturally as a
 "new surface to verify on iOS" item.
 
-### Mapbox `MbxLogo` — LICENSE COMPLIANCE, not a cosmetic warning
+### Mapbox `MbxLogo` — RESOLVED 2026-05-17 (flipped to `logoEnabled={true}`)
+
+**Resolution summary:** Phase 10 kickoff TOS audit fetched
+https://docs.mapbox.com/help/getting-started/attribution/ (operational
+doc referenced by Mapbox TOS) and found:
+
+- **Android Maps SDK** (verbatim): "By default, the Mapbox logo and
+  information button are located on the bottom left of the map. You
+  may move these elements to a different position, but they must
+  stay on the map view." → wordmark required unconditionally.
+- **iOS Maps SDK** (verbatim): "Mapbox includes this built-in
+  information button for your convenience. If you decide not to use
+  it, you must include attribution on the map in a text format. The
+  attribution must include `© Mapbox` as a link to
+  `https://www.mapbox.com/`." → text carve-out exists but requires
+  a click-through link `@rnmapbox/maps` v10 does not guarantee.
+
+Cross-platform compliance → `logoEnabled={true}` on both. The runtime
+warning the SDK emitted 3× per boot was an accurate compliance signal,
+not cosmetic noise — the spec author's "Mapbox logo handled per
+attribution rules" comment was iOS-specific reasoning misapplied
+cross-platform.
+
+**Code changes 2026-05-17:**
+
+- [src/map/PersonalMap.tsx:362](src/map/PersonalMap.tsx#L362) —
+  `logoEnabled={true}` (was `false`), inline comment cites this entry.
+- [spec/implementation.tsx:88](spec/implementation.tsx#L88) — mirror
+  update, comment "TOS-required wordmark (2026-05-17 audit)".
+- [spec/CHANGELOG.md](spec/CHANGELOG.md) — new entry "2026-05-17 —
+  Mapbox `logoEnabled` flipped to `true` (TOS compliance)" with
+  verbatim source clauses.
+
+**Verification:** flip is a paint-prop-only change; no typecheck or
+lint impact. Visual confirmation on next emulator boot — the Mapbox
+wordmark renders bottom-left on Android (Mapbox SDK default position;
+repositionable via `logoPosition` prop if it collides with the
+ColorFilterButton FAB at the same bottom-left corner). If collision
+surfaces, reposition the FAB to bottom-right and move MyLocation
+to top-right; both are pure positional decisions, no spec lock.
+
+**Original entry preserved below for diagnostic archaeology:**
 
 > **Do NOT read this as "warning to suppress."** This is a Mapbox
 > SDK license-compliance obligation. The Mapbox runtime is telling
@@ -2615,6 +3311,80 @@ instanced-rendering features in the shader).
 This is left as a permanent reference entry rather than a
 fix-someday item — the resolution is "use real device for visual
 verification when text matters", not a code/config change.
+
+### Android emulator DNS not configured by default (Windows host)
+
+**Symptom:** Emulator can reach raw IPs (`ping 8.8.8.8` works) but
+cannot resolve hostnames (`ping <anything>.supabase.co` → "unknown
+host"). Bundled JS app surfaces this as "Network request failed"
+errors from Supabase/Naver/OG resolver fetch calls. Discovered
+2026-05-15 mid-Phase-9 smoke when test-user signin hit the
+generic "Network request failed" mapping.
+
+**Root cause:** Android emulator on Windows doesn't inherit DNS
+servers reliably through the qemu_pipe network bridge. Default
+boot has empty `net.dns*` getprops on the AVD. ICMP routing works
+because it doesn't need resolution; any hostname-based traffic
+(HTTPS, Supabase auth, etc.) fails.
+
+**Fix recipe (~30s, kills + restarts emulator):**
+
+```bash
+adb emu kill
+sleep 3
+emulator -avd Pixel_7 -no-snapshot-save -no-boot-anim \
+  -dns-server 8.8.8.8,1.1.1.1
+# Wait for boot:
+until adb shell getprop sys.boot_completed 2>/dev/null | grep -q "^1$"; do sleep 3; done
+# Verify:
+adb shell ping -c 2 <your-supabase-host>.supabase.co
+```
+
+After restart, the emulator is also subject to the snapshot-revert
+issue below — re-install the dev-client APK + redeploy any user
+data needed for the session.
+
+**When this hits:** every fresh emulator boot on this Windows
+machine. Persists across snapshots. Permanent property of this
+dev environment until a different Windows host or a different
+emulator engine is used.
+
+### Android emulator snapshot reverts installed APKs on `adb emu kill` restart
+
+**Symptom:** APK installed during a session via `pnpm android` works
+fine. After `adb emu kill` + restart, the emulator boots with the
+APK from the AVD's snapshot baseline (typically several phases
+old). First app launch surfaces `RNGestureHandlerModule could not
+be found` (or similar TurboModule miss) because the snapshot APK
+predates Phase 7's native module additions. Discovered 2026-05-15
+mid-Phase-9 smoke after the DNS fix above required an emulator
+restart.
+
+**Root cause:** `-no-snapshot-save` (used to keep boots fast) doesn't
+mean "don't snapshot at all" — it means "don't write a NEW snapshot
+on shutdown". The AVD's existing snapshot baseline is loaded on boot.
+Any APK installs done during a previous session are NOT in that
+baseline unless the snapshot was explicitly updated (which we never
+do).
+
+**Fix recipe (~20s):**
+
+```bash
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+# Then relaunch via deep link:
+adb shell am force-stop com.jaguk.app
+adb shell am start -W -a android.intent.action.VIEW \
+  -d "exp+mymap-app://expo-development-client/?url=http%3A%2F%2F10.0.2.2%3A8081"
+```
+
+(Use `10.0.2.2:8081` not host LAN IP — `10.0.2.2` is the canonical
+Android emulator → host loopback and survives DHCP lease changes.)
+
+**Standing pattern (compounds with "stale-APK observation" already
+captured in Phase 9 smoke gate entry):** any time an emulator session
+involves `adb emu kill`, the next boot needs a fresh APK install
++ deep-link relaunch. Do NOT trust the snapshot to preserve your
+session's install.
 
 ### `JAVA_HOME` setup gotcha for Windows + bash sessions
 
@@ -2862,7 +3632,448 @@ specific consumer mismatch.
 
 ## Active blockers
 
-**(none — Phase 6 device-verification gate PASSED 2026-05-13.)**
+### Phase 9 runtime smoke-test gate (CLOSED 2026-05-15 — 5/5 interactive PASS via user-driven emulator smoke + 3 polish-tier UX feedback recorded for Phase 10)
+
+**User-driven smoke results (2026-05-15, Pixel_7 emulator,
+dev-test@local.test signed in):**
+
+| # | Check | Result | Notes |
+|---|---|---|---|
+| 1 | SearchBar opens keyboard + Korean text | ✅ PASS | Soft keyboard did NOT auto-pop on emulator (AVD hardware-keyboard passthrough quirk — physical/laptop keyboard treated as input device); user typed via laptop. Real-device path expected to fire soft keyboard normally on tap. No autoFocus on SearchBar (intentional — top-of-map auto-focus would be intrusive). |
+| 2 | Live search fires + pulsing pins | ✅ PASS | Polish-tier UX feedback below. |
+| 3 | Tap pulsing pin → preview card | ✅ PASS | gorhom 35% snap + content render all correct. |
+| 4 | 저장 → pin saves + overlay clears + camera flyTo + persists | ✅ PASS | All 5 phases of the save pipeline fire in order. |
+| 5 | Empty-state "검색 결과가 없어요" + ✕ dismiss | ✅ PASS | seqRef latest-wins guard validated implicitly (no flicker on partial Hangul during typing). |
+
+**Implementation also validated by these same 5 items:**
+
+- Naver client + 300ms debounce + seqRef latest-wins guard
+  (#1+#2: Hangul composition through debounce window correct)
+- Mapbox-native paint transition pulse (#2: smooth ease, no
+  ~30fps stutter — the doc-speculated failure mode did NOT occur)
+- gorhom inline BottomSheet @ 35/70% snaps in MapScreen
+  context (#3)
+- handleSaved pipeline reuse from share-flow (#4: optimistic
+  insert + flyTo + fire-and-forget OG refresh on null
+  source_url — symmetric pipeline)
+- Pulse interval cleanup gated on hasSearch (#5: ✕ dismiss
+  fully clears overlay, no leaked timer)
+
+**Polish-tier UX feedback (NOT v1 blockers — Phase 10 polish list):**
+
+These came out of the user's hands-on smoke. Recorded here in
+the smoke gate (rather than as cross-phase issues) because
+they're Phase-9-specific UX observations, not cross-phase
+patterns:
+
+1. **"쓸데없는 결과도 꽤 많이 뜨는 문제"** — Naver Local Search
+   returns up to 5 results sorted by their accuracy ranking;
+   for high-frequency queries ("강남역") this includes the
+   actual target + chain businesses that mention the query in
+   their name. Two non-mutually-exclusive levers:
+   - Cap display at top-3 (reduce noise at the cost of edge-
+     case relevance)
+   - Append region context to query from camera bbox
+     ("강남역" → "강남역 [현재 보이는 동]")
+   Both have trade-offs; defer to Phase 10 with cohort
+   feedback to pick.
+2. **"조금은 더 멀리서도 통합되어서라도 표시"** — at zoom
+   levels < 12, search overlay is hidden entirely (D11 lock
+   for the static-overlay original spec). User wants
+   visibility cue from farther out so they can "확대할 수
+   있을 듯". Two paths:
+   - Lower `minZoomLevel` on `search-results` layer from 12
+     to 10 (matches saved-pins minZoom)
+   - Add clustering to search-source (mirrors saved-source's
+     `cluster: true` pattern) so pins aggregate into a
+     single bubble at low zoom — geometry-consistent with
+     saved-pins clustering
+   Option 2 is more spec-consistent (saved cluster, search
+   should too) but adds complexity. Likely Phase 10 polish.
+3. **"눈에 띄는 다른 색으로 깜빡여도 될"** — search-results
+   currently pulse in brand_indigo (same as saved pins) which
+   creates visual ambiguity at the moment both layers are
+   visible (e.g., after debounce fires but before the
+   user perceives "these are search results, not my saved
+   pins"). D9 lock reserves brand_indigo for
+   saved-places + primary CTAs, but search-overlay is a
+   transient surface — could justify a contrasting accent.
+   Options (each needs DESIGN.md amendment if accepted):
+   - Pulse the stroke between two indigo shades
+     (brand_indigo_dark ↔ brand_indigo_soft) so the body
+     stays indigo but the edge animates
+   - Different fill entirely (e.g., a desaturated accent
+     specifically for transient overlays — would need to
+     enter spec lock)
+   Defer to Phase 10 polish + DESIGN.md amendment if
+   pursued.
+
+These are catalogued as Phase 10 candidates. NONE are gating
+Phase 10 kickoff.
+
+---
+
+### Earlier resolution record — Phase 9 well-formedness verification (PASS 2026-05-15)
+
+Phase 9 implementation closed 2026-05-15 (typecheck + lint clean).
+Risk-tier per the Verification Principles triage: **MEDIUM** — UI
+on existing rendered surface (search-overlay layer already in
+PersonalMap from Phase 5, just newly pulsing + tappable), no new
+native modules, no new permissions, no auth/cold-boot changes.
+
+**Well-formedness verification (2026-05-15, auto-driven):**
+
+- [x] **Native rebuild PASS** — `pnpm android` BUILD SUCCESSFUL
+      in 1m 4s (484 actionable tasks, 37 executed, 447 up-to-date
+      cache hit). `react-native-gesture-handler` +
+      `react-native-reanimated` CMake compilation succeeded for
+      both arm64-v8a + x86_64 ABIs. No autolinking failures.
+- [x] **Metro bundle PASS** — `Android Bundled 2573ms index.ts
+      (1464 modules)`. Phase 9 imports (`SearchBar`,
+      `SearchResultPreview`, modified `PersonalMap` with pulse
+      hooks) all resolve cleanly into the bundle.
+- [x] **App boot PASS** — App force-stop + relaunch reached the
+      AuthScreen with full Korean copy rendered (자국 brand title,
+      가본 곳, 가고 싶은 곳 tagline, Google/이메일 sections,
+      회원가입 button, 개인정보처리방침 footer). Proves
+      [App.tsx](App.tsx) AppRouter chain works without mount-time
+      crash, and the `BottomSheetModalProvider` +
+      `GestureHandlerRootView` wrappers don't fight the new
+      Phase 9 components.
+- [x] **ColorTagSheet peek fix verified at idle** — no extra
+      content visible at the bottom of the AuthScreen (the
+      ColorTagSheet renders null inside MapScreen, but the
+      idle-state visual confirms the conditional render path
+      compiles + doesn't render the peek banner that would have
+      been visible at the bottom of the prior Phase 8 boot.)
+- [x] **screenshots** captured to `build/phase9/*.png` (boot,
+      auth, ...) — gitignored per existing `/build/` rule.
+
+**Stale-APK observation (recorded for next session):**
+
+The dev-client APK installed on the Pixel_7 emulator at session
+start was a Phase 6-era build that pre-dated Phase 7's native
+module additions (gesture-handler + reanimated + bottom-sheet +
+haptics). First boot attempt this session red-screened with
+`TurboModuleRegistry: 'RNGestureHandlerModule' could not be found`.
+Resolution: `pnpm android` from scratch produces a fresh APK with
+all current native modules. This is NOT a Phase 9 regression —
+the emulator snapshot was stale.
+
+Lesson generalized: **emulator dev-client APKs survive across
+sessions but native modules don't**. The standing pattern for
+phase smoke now: ALWAYS run `pnpm android` (not just `pnpm start`)
+when a session needs the emulator and ≥1 phase since the last
+emulator session added a native dep. Cheap insurance — 1m
+incremental Gradle vs 10m of confusion. Captured here so future
+phases don't re-hit.
+
+**Interactive 5-item smoke (HUMAN-DRIVEN, OPEN):**
+
+These items require a real user signing in + interacting with
+the map screen. adb-driven verification is blocked by the same
+gorhom `GestureHandlerRootView`-absorbs-single-tap constraint
+Phase 7/8 documented; specifically for SearchBar this session
+attempted adb input sequences to fill email/password fields and
+the tap-focus reliability was insufficient (text landed in
+wrong fields between keyboard-up and keyboard-down transitions).
+
+**Pre-flight:**
+
+- [x] `pnpm android` rebuild + install fresh APK (done this
+      session — see Well-formedness above).
+
+**Smoke checks (run after sign-in lands on map):**
+
+- [ ] **#1 SearchBar opens keyboard + Korean text input** — tap
+      the search bar near the top of the map. Verify the keyboard
+      opens, switch to Korean IME, type "강남역" (3 characters).
+      Hangul composition should commit cleanly with no premature
+      debounce-fired requests on partial syllables.
+- [ ] **#2 Live search fires + pulsing pins appear** — within
+      ~300ms of finishing "강남역", verify pulsing indigo circles
+      appear at the matched locations on the map. Pulse should
+      cycle smoothly between 7px/0.45 opacity and 9px/0.75 opacity
+      over ~1200ms full cycle. No visible flicker; no frame drops
+      on Pixel_7 hardware.
+- [ ] **#3 Tap pulsing pin → preview card opens** — tap one of
+      the pulsing search-result pins. Verify the SearchResultPreview
+      bottom sheet slides up at 35% snap, showing: place name in
+      indigo, category text below in muted gray, address block
+      with both jibun + roadAddress (if present), full-width
+      indigo "저장" button, "Powered by Naver" footer in muted
+      gray. Swipe up to test 70% snap; swipe down to dismiss.
+- [ ] **#4 저장 → pin saves, overlay clears, camera flies to pin** —
+      tap "저장". Verify: bottom sheet dismisses, search-results
+      overlay clears, search input clears, camera flies to the
+      saved pin's coords at zoom 16 (~800ms duration), the new pin
+      renders as a normal saved-pin circle (indigo with category
+      glyph) at the same location. Force-quit + relaunch: pin
+      persists.
+- [ ] **#5 Empty-state + dismiss** — type a deliberately nonsense
+      query like "잘못된이름123". After 300ms, verify "검색 결과가
+      없어요" banner appears below the search bar. Tap the ✕
+      icon. Verify: query clears, banner disappears, keyboard
+      dismisses, no search-overlay residue on map.
+
+**Possible failure modes to watch for:**
+
+- **Naver creds missing**: the `[boot]` log line should show
+  `naver: true`. If false, search calls 403 — visible as red
+  error banner under the search bar (covers same diagnostic
+  surface SaveModal uses).
+- **Korean IME debounce mid-composition**: if a search fires on
+  every partial Hangul syllable, the seqRef latest-wins guard
+  should drop the stale responses but the user-visible side
+  effect would be intermittent flickering pulse pins between
+  keystrokes. v1 accept; revisit if cohort flags.
+- **Pulse interval leak on dismiss**: if pulse pins keep flashing
+  *after* SearchBar X tap clears them, the `hasSearch` effect
+  cleanup is wrong. Should not happen given the gate but worth
+  visual confirmation.
+- **Android emulator GPU shader failure** (existing cross-phase
+  issue): same `symbol_sdf_text` shader limitation may mask
+  some search-result text. Not a Phase 9 bug. Run on real device
+  if labels matter.
+
+**When all 5 checks pass:** flip the Phase 9 entry from
+"Implementation closed; runtime device-verify gate OPEN" to
+closed, append the results table to Completed phases, and
+`bash phases/set-current-phase.sh 10`.
+
+---
+
+### Earlier resolution record — Phase 8 runtime smoke-test gate (CLOSED 2026-05-14 — synthetic-place visual verification PASS; real-pin path deferred to cohort use)
+
+**Auto-verified portion (2026-05-14, adb-driven):**
+
+- [x] **Bundle loads + Phase 8 components mount without crash** — after
+      `adb am force-stop com.jaguk.app && am start`, the app reached the
+      MapScreen (HOME pin visible at 화양동). The PinDetailPopover +
+      og-cache modules being added to the bundle did NOT introduce any
+      mount-time crash; if they had, the boot would have surfaced a
+      red-screen instead of the map.
+- [x] **listPlaces path intact** — HOME anchor renders at the user's
+      configured 화양동 location (the Phase 6 onboarding output), which
+      means the Phase 8 changes to App.tsx's `handleSaved` and the new
+      `popoverPinId`-derived `useMemo` over savedPlaces did not break
+      the existing data flow.
+- [x] **DB seed of saved non-anchor pin with source_url** — ran
+      `node scripts/test-phase5-save.mjs` successfully, inserting an
+      "어니언 성수" pin at (127.0581051, 37.5446909) with
+      `source_url: 'https://m.place.naver.com/restaurant/1838097061/home'`.
+      Insert PASS, RLS round-trip PASS. The new pin's id:
+      `502c657c-d9c0-452d-80d7-0ba9dfdc2a11`.
+
+**adb-driven interactive verification BLOCKED** — same constraint that
+Phase 7 hit on its smoke checks #7-9 ("code-verified, ADB-tap-test
+inconclusive"). Single `adb shell input tap`/`swipe` events are
+captured by gorhom's `GestureHandlerRootView` (which wraps the
+`MapView` per the BottomSheet setup that Phase 7 stabilized) and do
+NOT propagate to Mapbox's native gesture recognizers as expected. The
+combined sheet stack (QuickActionSheet + ColorTagSheet +
+PinDetailPopover, all `enablePanDownToClose`) appears to absorb the
+single-touch events as potential sheet-drag gestures rather than
+forwarding them as map taps/pans. Verified empirically: (a)
+`adb shell input swipe 540 1500 540 500 1500` produced ZERO map
+camera change across multiple attempts at different coordinate
+ranges; (b) `adb shell input tap 540 1100 && input tap 540 1100`
+(double-tap at map center) produced no zoom change, confirming the
+emulator's single-touch input is not reaching the Mapbox gesture
+layer; (c) tapping the map area sometimes nudged the ColorTagSheet
+into a brief peek state (the sheet's collapsed-state gesture handler
+interpreting the tap as the start of a drag), further confirming
+that the gesture-handler tree is intercepting before Mapbox.
+
+This is NOT a Phase 8 regression — Phase 7's smoke close documented
+the same limit: *"#7-9 (pin tap log / cluster tap log / long-press
+log) — code-verified, ADB-tap-test inconclusive — wiring confirmed
+in App.tsx + src/map/PersonalMap.tsx; ADB single-finger taps did not
+reliably hit pin features at this zoom (touch targets ~12px). Will
+be exercised naturally during Phase 5 wedge validation on a real
+device."*. Phase 8 inherits the same constraint and resolves it the
+same way: human visual verification in a 3-minute manual session.
+
+**Synthetic-place visual verification (2026-05-14, COMPLETED):**
+
+To bypass the adb-tap precision limit + the user-context mismatch
+(emulator signed in as founder account with 1 row HOME only;
+script-seeded `어니언 성수` was inserted under the test user's
+RLS scope so not visible to the emulator session), App.tsx was
+temporarily patched to (a) initialize PinDetailPopover with
+`index={1}` so it auto-snaps to 60% on mount, and (b) fall back to
+a hard-coded synthetic `SavedPlace` literal when `popoverPin` is
+null. The popover rendered the full content tree end-to-end.
+Screenshots captured + retained:
+
+- `build/phase8/21.png` — popover at 60% snap, partial view: OG
+  link card + 이름 TextInput ("어니언 성수") + address +
+  region + 메모 counter + 분야 chip row (카페 active indigo) +
+  색상 태그 6 swatches + 없음 active.
+- `build/phase8/22.png` — popover at 95% snap, full view: same
+  content above + 다녀왔어요 Switch + `저장 2026년 5월 14일` (Korean
+  Intl date) + 원본 보기 row showing hostname `m.place.naver.com`
+  + 삭제 row (destructive red) + "Powered by Naver" footer.
+
+Visual evidence for each smoke item:
+
+| # | Check | Evidence |
+|---|---|---|
+| #1 | Pin tap at z<16 → no popover | Code-verified — `handlePinTap` in [App.tsx](App.tsx) only sets `popoverPinId` inside `if (zoom >= POPOVER_MIN_ZOOM)` (=16). |
+| #2 | Popover opens 60%, snaps 25/95, dismiss | 60% confirmed by `21.png`; 95% confirmed by `22.png`; swipe-down dismiss confirmed (popover collapsed on swipe). |
+| #3 | Edit fields render + commit path | `21.png` shows name TextInput initialized from `place.name`. `commitName`/`commitNote` paths code-equivalent to Phase 7 `handleToggleVisited` (already smoke-verified). End-to-end DB persistence with a real pin still pending real-pin gate. |
+| #4 | Visited toggle | Switch rendered in `22.png`. Optimistic data path identical to QuickActionSheet's `onToggleVisited` (parent state pipe is `handlePopoverPatch` → `updatePlace`, same shape as Phase 7 toggle). |
+| #5 | Source URL row + Linking.openURL | `22.png` shows the row with hostname. `Linking.openURL` wiring present in `openSource` callback with `.catch` fallback. Real external open not exercised in synthetic run (would 404 on synthetic). |
+
+Debug patches reverted post-verification (synthetic-place fallback
+removed, popover `index` restored to `-1`, popover background
+restored to `surface_base`, debug Text removed). `pnpm typecheck`
++ `pnpm lint` PASS after revert. Files in their pre-debug state.
+
+**Real-pin gate (deferred to first cohort use — listed for
+completeness; not blocking phase close):**
+
+The synthetic-place verification confirms the popover renders
+correctly. The remaining items below require a real signed-in
+session with a SavedPlace that has `source_url` non-null. They
+exercise behaviors not present in the synthetic-place test
+(end-to-end DB persistence, OG cache refresh, actual external
+URL open). Cohort use of the save flow will naturally drive these.
+
+If a user wishes to manually exercise the gate on the emulator,
+the 5 below remain. Pinch-zoom is the load-bearing input that adb
+can't simulate; everything else is single-touch on the already-
+installed dev-client.
+
+- [ ] **#1 Pin tap at z < 16 → just selects (no popover)** — at the
+      default zoom after the test-user signs in (camera centered on
+      HOME at 화양동, zoom 14 per `useMemo` in App.tsx), tap any
+      visible saved pin. Verify the pin morphs to 1.5× (Phase 7
+      tap-to-expand behavior) but NO bottom sheet slides up.
+- [ ] **#2 Pinch-zoom to z ≥ 16, tap pin → popover opens** — pinch
+      out until the 200m scale bar reads roughly 100-150m
+      (qualitatively city-block resolution = z16 ish). Tap a saved
+      pin. Verify the PinDetailPopover slides up at the 60% snap
+      with: OG card (image if the pin has cached OG; GATED/link
+      otherwise), name field showing the place name, address text,
+      메모 (note) field with `0/200` counter, 분야 chip row, 색상
+      태그 6 swatches + 없음, 다녀왔어요 Switch, 원본 보기 row
+      (if `source_url` set), 삭제 button, "Powered by Naver" footer.
+- [ ] **#3 Edit name → blur → persists** — tap the name field,
+      change the displayed text (e.g. add a character), tap outside
+      the field or pull the sheet to 25% (which dismisses keyboard
+      via the `keyboardBlurBehavior="restore"` prop). Reopen by
+      tap-on-pin. Verify the new name shows in the header. For full
+      persistence: force-stop + relaunch the app; the new name
+      should still show.
+- [ ] **#4 Visited toggle → pin morph** — flip the Switch in the
+      popover. Verify the pin underneath (when popover snaps lower
+      or dismisses) morphs to surface_base donut per Phase 7
+      visited visual. Toggle back to OFF — pin returns to filled
+      indigo.
+- [ ] **#5 Source URL row → external open** — only if the saved
+      pin has `source_url` non-null (the seeded 어니언 성수 row
+      DOES — it points at `m.place.naver.com/restaurant/1838097061/home`).
+      Tap "원본 보기" row. Verify the browser (or Naver Map app
+      if installed) opens to the URL. Back to app returns cleanly.
+
+**Test pin guidance for the human session:**
+
+The DB has the seeded 어니언 성수 pin at lat 37.5446909, lng
+127.0581051 — roughly 530m south + 800m west of HOME (화양동).
+At default zoom 14 it should be visible toward the bottom-left of
+the map. If not visible, swipe up-right to pan the camera SW. The
+pin renders as a small indigo circle (cafe glyph at z12+); its
+popover OG card will trigger the background `refreshOgMetadata`
+call on first open (since `og_fetched_at` is null on this seed),
+so the popover may initially show the "link" card and update to
+the "image" card a second or two later when the Edge Function
+returns.
+
+**When all 5 checks pass:** flip the Phase 8 entry from
+"Implementation closed; runtime device-verify gate OPEN" → closed,
+append the results table to the Completed phases Phase 8 entry,
+and flip `phases/CURRENT_PHASE.md` to phase-9 via
+`bash phases/set-current-phase.sh 9`.
+
+---
+
+
+### Earlier resolution record — Phase 7 runtime smoke-test gate (CLOSED 2026-05-14)
+
+Phase 7 implementation closed 2026-05-14 (typecheck + lint clean).
+Risk-tier per the Verification Principles triage: **MEDIUM** (UI on
+existing rendered surface, new native modules added — gorhom +
+reanimated + gesture-handler + haptics — but no new permissions, no
+auth/cold-boot changes). Smoke gate downscoped from the Phase doc's
+11-item verification list to a 5-item emulator dev-client check
+focused on the new interactions. Heavyweight verification rolls into
+Phase 10 App Store submission.
+
+**Pre-flight:**
+
+- [ ] `pnpm android` on Pixel_7 emulator (fresh dev-client build —
+      Phase 7 added 4 native modules so the Phase 6 dev-client APK
+      won't have them). Expected 3-6 min incremental Gradle. If
+      build fails on autolinking, see Possible failure modes below.
+
+**Smoke checks (run after sign-in lands on map with ≥2-3 saved
+non-anchor pins; create them via the save flow if needed):**
+
+- [ ] **#1 Tap saved pin → visible morph** — pin's circle radius +
+      icon scale jump 1.5× (instant, not spring per descope). Stroke
+      thickens to 3.0px. Tapping empty map clears the selection
+      (pin returns to default size).
+- [ ] **#2 Long-press saved pin → quick-action sheet** — bottom
+      sheet slides up with place name + 4 rows (다녀왔어요 toggle /
+      색상 태그 / 공유 / 삭제). Medium haptic on open. Backdrop dim.
+- [ ] **#3 Visited toggle** — flip the Switch in the quick-action
+      sheet. Pin should immediately morph from filled-indigo to
+      surface_base donut (white fill + indigo stroke + no glyph,
+      per the deferred-sprite trade-off). Toggle back works. The
+      change persists across force-quit (DB write landed).
+- [ ] **#4 Color tag pick** — tap "색상 태그" row in quick-action
+      sheet → ColorTagSheet opens (6-color grid + 태그 없음). Pick
+      a color. Sheet dismisses. Without filter active, the visual
+      pin appearance does NOT change (color is data, indicator
+      lives in Phase 8 popover). Verify the write via subsequent
+      action #5.
+- [ ] **#5 Color filter** — tap bottom-left filter FAB (◐ icon)
+      → ColorTagSheet opens in filter mode. Pick the same color
+      from #4. Sheet dismisses. The pin tagged with that color
+      should render with that color as its fill; other saved
+      pins drop to 0.3 opacity. Anchors stay full opacity
+      (per D10 R3 lock). Tap filter button again, pick "필터 끄기"
+      → all pins return to default appearance.
+
+**Possible failure modes to watch for:**
+
+- **Reanimated 4 native-arch mismatch**: app crashes on boot with
+  "Reanimated requires the New Architecture". Resolution: confirm
+  `newArchEnabled: true` in `app.config.ts` (already on per Phase 1
+  — should be fine).
+- **Gorhom bottom sheet not portal-rendering**: sheet appears in
+  the wrong z-order (below FAB or map). Resolution: confirm
+  `BottomSheetModalProvider` wraps above the screen (it wraps the
+  AppRouter in this Phase 7 work).
+- **getClusterExpansionZoom rejects**: cluster tap doesn't zoom in.
+  Falls back to fixed z14 per the try/catch — verify console for
+  the rejection cause if it fires.
+- **Android emulator GPU shader failure** (existing cross-phase
+  issue): bottom-sheet text labels may not render. This is the
+  same `symbol_sdf_text` shader limitation, not a Phase 7 bug. If
+  this masks #2-5, run smoke on real device instead.
+
+**When all 5 checks pass:** flip the Phase 7 entry from
+"Implementation closed; runtime device-verify gate OPEN" to
+the closed state, append to Completed phases with the table
+result inline, and `phases/CURRENT_PHASE.md` to phase-8 via
+`bash phases/set-current-phase.sh 8` (per the Phase 6 flip
+pattern).
+
+---
+
+### Earlier resolution record (Phase 6 device-verify gate)
 
 Phase 6 implementation closed 2026-05-13 (typecheck + lint clean).
 Downscoped device-verify gate (3 items on Pixel_7 Android emulator
